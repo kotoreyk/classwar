@@ -130,6 +130,31 @@ border-radius: var(--radius-sm);
 border-left: 2px solid var(--border-strong);
 }
 
+.file-label {
+display: block;
+font-family: inherit;
+font-size: 12px;
+font-weight: 500;
+padding: 9px 10px;
+color: var(--text);
+background: var(--surface);
+border: 1px solid var(--border-strong);
+border-radius: var(--radius-sm);
+cursor: pointer;
+transition: background 0.12s ease, border-color 0.12s ease;
+text-align: center;
+margin-bottom: 8px;
+}
+
+.file-label:hover {
+background: var(--surface-2);
+border-color: #b8b8b8;
+}
+
+.file-label input {
+display: none;
+}
+
 .controls {
 display: grid;
 grid-template-columns: 1fr 1fr;

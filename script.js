@@ -45,6 +45,7 @@ const countEl = document.getElementById('hexCount');
 const sizeEl = document.getElementById('hexSize');
 const statusEl = document.getElementById('statusLine');
 const editBtn = document.getElementById('editBtn');
+const geojsonInput = document.getElementById('geojsonInput');
 const toastEl = document.getElementById('toast');
 
 let toastTimer = null;
@@ -83,6 +84,95 @@ r -= it.weight;
 if (r <= 0) return it;
 }
 return items[0];
+}
+
+function pointInPolygon(x, y, poly) {
+let inside = false;
+for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+const xi = poly[i][0], yi = poly[i][1];
+const xj = poly[j][0], yj = poly[j][1];
+const intersect = ((yi > y) !== (yj > y)) &&
+(x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi);
+if (intersect) inside = !inside;
+}
+return inside;
+}
+
+function polygonBounds(points) {
+let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+for (const p of points) {
+if (p[0] < minX) minX = p[0];
+if (p[1] < minY) minY = p[1];
+if (p[0] > maxX) maxX = p[0];
+if (p[1] > maxY) maxY = p[1];
+}
+return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
+}
+
+function polygonCentroid(points) {
+const bounds = polygonBounds(points);
+return [(bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2];
+}
+
+function buildHexField(polyLocal, size) {
+const sqrt3 = Math.sqrt(3);
+const bounds = polygonBounds(polyLocal);
+const origin = polygonCentroid(polyLocal);
+const cx = origin[0];
+const cy = origin[1];
+const halfW = (bounds.maxX - bounds.minX) / 2 + size * 2;
+const halfH = (bounds.maxY - bounds.minY) / 2 + size * 2;
+const qRange = Math.ceil(halfW / (size * sqrt3)) + 1;
+const sRange = Math.ceil(halfH / (size * 1.5)) + 1;
+const result = [];
+let id = 1;
+for (let q = -qRange; q <= qRange; q++) {
+for (let s = -sRange; s <= sRange; s++) {
+const x = cx + size * sqrt3 * (q + s / 2);
+const y = cy + size * 1.5 * s;
+if (!pointInPolygon(x, y, polyLocal)) continue;
+const owner = weightedRandom(FACTIONS);
+result.push({
+id: id++,
+q: q,
+s: s,
+size: size,
+latlng: toLatLng(x, y),
+owner: owner.id,
+ownerName: owner.name,
+color: owner.color,
+hp: Math.floor(Math.random() * 60) + 40
+});
+}
+}
+return result;
+}
+
+function rebuild() {
+if (gridLayer) {
+map.removeLayer(gridLayer);
+gridLayer = null;
+}
+outlineLayer.setLatLngs(outline);
+if (outline.length >= 3) {
+const polyLocal = outline.map(toLocal);
+const bounds = polygonBounds(polyLocal);
+const size = Math.max(1.5, Math.min(5, (bounds.maxX - bounds.minX) / 15));
+hexes = buildHexField(polyLocal, size);
+countEl.textContent = hexes.length;
+sizeEl.textContent = size.toFixed(1);
+if (hexes.length) {
+gridLayer = new HexGridLayer(hexes).addTo(map);
+setStatus('Гексы построены внутри контура здания.');
+} else {
+setStatus('Не удалось разместить гексы. Попробуйте уменьшить размер.');
+}
+} else {
+hexes = [];
+countEl.textContent = '0';
+sizeEl.textContent = '—';
+setStatus('Нажмите «Разметить корпус»');
+}
 }
 
 const HexGridLayer = L.Layer.extend({
@@ -203,53 +293,6 @@ this._draw();
 }
 });
 
-function buildHexField(size) {
-const sqrt3 = Math.sqrt(3);
-const result = [];
-let id = 1;
-for (let q = -2; q <= 2; q++) {
-for (let s = -2; s <= 2; s++) {
-const x = size * sqrt3 * (q + s / 2);
-const y = size * 1.5 * s;
-const latlng = toLatLng(x, y);
-const owner = weightedRandom(FACTIONS);
-result.push({
-id: id++,
-q: q,
-s: s,
-size: size,
-latlng: latlng,
-owner: owner.id,
-ownerName: owner.name,
-color: owner.color,
-hp: Math.floor(Math.random() * 60) + 40
-});
-}
-}
-return result;
-}
-
-function rebuild() {
-if (gridLayer) {
-map.removeLayer(gridLayer);
-gridLayer = null;
-}
-outlineLayer.setLatLngs(outline);
-if (outline.length >= 3) {
-const size = 3;
-hexes = buildHexField(size);
-countEl.textContent = hexes.length;
-sizeEl.textContent = size.toFixed(1);
-gridLayer = new HexGridLayer(hexes).addTo(map);
-setStatus('Гексы построены внутри контура здания.');
-} else {
-hexes = [];
-countEl.textContent = '0';
-sizeEl.textContent = '—';
-setStatus('Нажмите «Разметить корпус»');
-}
-}
-
 function updateDraft() {
 draftLayer.clearLayers();
 draft.forEach(p => {
@@ -290,6 +333,48 @@ gridLayer._canvas.style.pointerEvents = value ? 'none' : 'auto';
 }
 }
 
+function extractPolygonFromGeoJSON(data) {
+if (data.type === 'FeatureCollection') {
+for (const feature of data.features) {
+const poly = extractPolygonFromGeoJSON(feature);
+if (poly) return poly;
+}
+} else if (data.type === 'Feature') {
+return extractPolygonFromGeoJSON(data.geometry);
+} else if (data.type === 'Polygon') {
+const ring = data.coordinates[0];
+return ring.map(c => [c[1], c[0]]);
+}
+return null;
+}
+
+geojsonInput.addEventListener('change', function (e) {
+const file = e.target.files[0];
+if (!file) return;
+const reader = new FileReader();
+reader.onload = function (ev) {
+try {
+const data = JSON.parse(ev.target.result);
+const polygon = extractPolygonFromGeoJSON(data);
+if (polygon && polygon.length >= 3) {
+outline = polygon;
+rebuild();
+if (outline.length >= 3) {
+map.fitBounds(L.latLngBounds(outline).pad(0.6), { maxZoom: 20, animate: true });
+}
+showToast('Контур загружен из GeoJSON', '#66bb6a');
+} else {
+showToast('Не удалось найти полигон в файле', '#ef5350');
+}
+} catch (err) {
+console.error('GeoJSON parse error:', err);
+showToast('Ошибка чтения файла: ' + err.message, '#ef5350');
+}
+};
+reader.readAsText(file);
+e.target.value = '';
+});
+
 map.on('click', function (e) {
 if (!editing) return;
 draft.push([e.latlng.lat, e.latlng.lng]);
@@ -305,6 +390,9 @@ const points = draft.slice();
 setEditing(false);
 outline = points;
 rebuild();
+if (outline.length >= 3) {
+map.fitBounds(L.latLngBounds(outline).pad(0.6), { maxZoom: 20, animate: true });
+}
 showToast('Контур сохранён', '#66bb6a');
 } else {
 showToast('Нужно минимум 3 точки', '#ef5350');
@@ -323,6 +411,9 @@ const points = draft.slice();
 setEditing(false);
 outline = points;
 rebuild();
+if (outline.length >= 3) {
+map.fitBounds(L.latLngBounds(outline).pad(0.6), { maxZoom: 20, animate: true });
+}
 } else {
 setEditing(false);
 }
