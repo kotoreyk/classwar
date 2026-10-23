@@ -44,3 +44,143 @@ width: 100vw;
 height: 100vh;
 background: #eef1f4;
 }
+
+.hud {
+position: fixed;
+top: 16px;
+left: 16px;
+z-index: 1000;
+padding: 20px 22px;
+background: var(--surface);
+border: 1px solid var(--border);
+border-radius: var(--radius);
+box-shadow: var(--shadow-md);
+width: 280px;
+max-height: calc(100vh - 32px);
+overflow-y: auto;
+}
+
+.hud-header {
+margin-bottom: 18px;
+padding-bottom: 14px;
+border-bottom: 1px solid var(--border);
+}
+
+.hud h1 {
+font-size: 16px;
+font-weight: 600;
+letter-spacing: -0.2px;
+color: var(--text);
+margin-bottom: 4px;
+}
+
+.hud-sub {
+font-size: 12px;
+color: var(--text-muted);
+letter-spacing: 0;
+}
+
+.stats {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 10px;
+margin-bottom: 16px;
+}
+
+.stat {
+background: var(--surface-2);
+border: 1px solid var(--border);
+border-radius: var(--radius-sm);
+padding: 10px 12px;
+}
+
+.stat-label {
+display: block;
+font-size: 11px;
+color: var(--text-muted);
+text-transform: uppercase;
+letter-spacing: 0.5px;
+margin-bottom: 4px;
+}
+
+.stat-value {
+display: block;
+font-size: 18px;
+font-weight: 600;
+color: var(--text);
+font-variant-numeric: tabular-nums;
+}
+
+.status {
+font-size: 12px;
+color: var(--text-muted);
+margin-bottom: 16px;
+padding: 10px 12px;
+background: var(--surface-2);
+border-radius: var(--radius-sm);
+border-left: 2px solid var(--border-strong);
+}
+
+.controls {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 8px;
+}
+
+.controls button {
+font-family: inherit;
+font-size: 12px;
+font-weight: 500;
+padding: 9px 10px;
+color: var(--text);
+background: var(--surface);
+border: 1px solid var(--border-strong);
+border-radius: var(--radius-sm);
+cursor: pointer;
+transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.controls button:hover {
+background: var(--surface-2);
+border-color: #b8b8b8;
+}
+
+.controls button:active {
+background: #f0f0f0;
+}
+
+.controls button.active {
+background: var(--accent);
+color: #fff;
+border-color: var(--accent);
+}
+
+.controls button.ghost {
+grid-column: 1 / -1;
+color: var(--text-muted);
+border-color: var(--border);
+}
+
+.controls button.ghost:hover {
+color: var(--text);
+}
+
+.leaflet-control-attribution {
+background: rgba(255, 255, 255, 0.85) !important;
+color: #888 !important;
+font-size: 10px !important;
+}
+
+.leaflet-control-attribution a {
+color: #555 !important;
+}
+
+.leaflet-control-zoom a {
+background: var(--surface) !important;
+color: var(--text) !important;
+border-color: var(--border) !important;
+}
+
+.leaflet-control-zoom a:hover {
+background: var(--surface-2) !important;
+}

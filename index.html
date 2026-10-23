@@ -9,6 +9,27 @@
 </head>
 <body>
 <div id="map"></div>
+<div class="hud">
+<header class="hud-header">
+<h1>Битва классов</h1>
+<span class="hud-sub">Тихоокеанская, 132А</span>
+</header>
+<div class="stats">
+<div class="stat">
+<span class="stat-label">Секторов</span>
+<span class="stat-value" id="hexCount">0</span>
+</div>
+<div class="stat">
+<span class="stat-label">Размер</span>
+<span class="stat-value"><span id="hexSize">—</span> м</span>
+</div>
+</div>
+<div class="status" id="statusLine">Нажмите «Разметить корпус»</div>
+<div class="controls">
+<button id="editBtn" type="button">Разметить корпус</button>
+<button id="clearBtn" type="button" class="ghost">Сбросить</button>
+</div>
+</div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="script.js"></script>
 </body>
