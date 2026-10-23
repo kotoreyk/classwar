@@ -74,6 +74,7 @@ return items[0];
 const HexGridLayer = L.Layer.extend({
 initialize: function (items) {
 this.items = items;
+this._hovered = null;
 },
 onAdd: function (map) {
 this._map = map;
@@ -83,7 +84,11 @@ this._canvas = canvas;
 this._ctx = canvas.getContext('2d');
 map.getContainer().appendChild(canvas);
 this._click = this._onClick.bind(this);
+this._move = this._onMove.bind(this);
+this._leave = this._onLeave.bind(this);
 canvas.addEventListener('click', this._click);
+canvas.addEventListener('mousemove', this._move);
+canvas.addEventListener('mouseleave', this._leave);
 map.on('move zoom resize viewreset', this._resize, this);
 this._resize();
 this._draw();
@@ -91,6 +96,8 @@ return this;
 },
 onRemove: function (map) {
 this._canvas.removeEventListener('click', this._click);
+this._canvas.removeEventListener('mousemove', this._move);
+this._canvas.removeEventListener('mouseleave', this._leave);
 map.off('move zoom resize viewreset', this._resize, this);
 this._canvas.remove();
 },
@@ -114,10 +121,11 @@ for (const hex of this.items) {
 const p = this._map.latLngToContainerPoint(hex.latlng);
 const r = this._pixelRadius(hex);
 if (p.x < -r || p.x > size.x + r || p.y < -r || p.y > size.y + r) continue;
-this._drawHex(ctx, p.x, p.y, r, hex);
+const isHovered = hex === this._hovered;
+this._drawHex(ctx, p.x, p.y, r, hex, isHovered);
 }
 },
-_drawHex: function (ctx, x, y, r, hex) {
+_drawHex: function (ctx, x, y, r, hex, hovered) {
 ctx.save();
 ctx.beginPath();
 for (let i = 0; i < 6; i++) {
@@ -127,10 +135,10 @@ const py = y + r * Math.sin(a);
 if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
 }
 ctx.closePath();
-ctx.fillStyle = hex.color + '40';
+ctx.fillStyle = hex.color + (hovered ? '66' : '40');
 ctx.fill();
 ctx.strokeStyle = hex.color;
-ctx.lineWidth = 1;
+ctx.lineWidth = hovered ? 2 : 1;
 ctx.stroke();
 ctx.restore();
 },
@@ -159,6 +167,22 @@ if (!hex) return;
 const msg = 'Сектор #' + hex.id + ' · ' + hex.ownerName;
 console.log('Вы кликнули на сектор #' + hex.id + '. Текущий владелец: ' + hex.ownerName, hex);
 showToast(msg, hex.color);
+},
+_onMove: function (e) {
+const c = this._localCoords(e);
+const hex = this._hitTest(c.x, c.y);
+if (hex !== this._hovered) {
+this._hovered = hex;
+this._canvas.style.cursor = hex ? 'pointer' : 'default';
+this._draw();
+}
+},
+_onLeave: function () {
+if (this._hovered) {
+this._hovered = null;
+this._canvas.style.cursor = 'default';
+this._draw();
+}
 }
 });
 
@@ -198,7 +222,7 @@ hexes = buildHexField(size);
 countEl.textContent = hexes.length;
 sizeEl.textContent = size.toFixed(1);
 gridLayer = new HexGridLayer(hexes).addTo(map);
-setStatus('Гексы построены (тестовая сетка 5×5). Кликните по гексу.');
+setStatus('Гексы построены (тестовая сетка 5×5). Наведите на гекс.');
 }
 
 rebuild();
