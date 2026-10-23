@@ -3,6 +3,15 @@ const DEFAULT_CENTER = [48.4827, 135.0838];
 const M_PER_DEG_LAT = 110540;
 const M_PER_DEG_LNG = 82650;
 
+const FACTIONS = [
+{ id: 'neutral', name: 'Нейтрально', color: '#b5b5b5', weight: 5 },
+{ id: '10А', name: '10 А', color: '#ef5350', weight: 2 },
+{ id: '10Б', name: '10 Б', color: '#42a5f5', weight: 2 },
+{ id: '11А', name: '11 А', color: '#66bb6a', weight: 2 },
+{ id: '11Б', name: '11 Б', color: '#ffa726', weight: 2 },
+{ id: '11В', name: '11 В', color: '#ab47bc', weight: 2 }
+];
+
 let center = DEFAULT_CENTER.slice();
 let hexes = [];
 let gridLayer = null;
@@ -35,6 +44,16 @@ return [
 center[0] + y / M_PER_DEG_LAT,
 center[1] + x / M_PER_DEG_LNG
 ];
+}
+
+function weightedRandom(items) {
+const total = items.reduce((s, it) => s + it.weight, 0);
+let r = Math.random() * total;
+for (const it of items) {
+r -= it.weight;
+if (r <= 0) return it;
+}
+return items[0];
 }
 
 const HexGridLayer = L.Layer.extend({
@@ -108,13 +127,17 @@ for (let s = -2; s <= 2; s++) {
 const x = size * sqrt3 * (q + s / 2);
 const y = size * 1.5 * s;
 const latlng = toLatLng(x, y);
+const owner = weightedRandom(FACTIONS);
 result.push({
 id: id++,
 q: q,
 s: s,
 size: size,
 latlng: latlng,
-color: '#b5b5b5'
+owner: owner.id,
+ownerName: owner.name,
+color: owner.color,
+hp: Math.floor(Math.random() * 60) + 40
 });
 }
 }
