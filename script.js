@@ -13,6 +13,7 @@ const FACTIONS = [
 ];
 
 let center = DEFAULT_CENTER.slice();
+let outline = [];
 let hexes = [];
 let gridLayer = null;
 
@@ -28,9 +29,19 @@ maxNativeZoom: 19,
 maxZoom: 21
 }).addTo(map);
 
+const outlineLayer = L.polygon([], {
+color: '#1a1a1a',
+weight: 1.5,
+dashArray: '4 4',
+fillColor: '#1a1a1a',
+fillOpacity: 0.02
+}).addTo(map);
+
 const countEl = document.getElementById('hexCount');
 const sizeEl = document.getElementById('hexSize');
 const statusEl = document.getElementById('statusLine');
+const editBtn = document.getElementById('editBtn');
+const candidatesEl = document.getElementById('candidates');
 const toastEl = document.getElementById('toast');
 
 let toastTimer = null;
@@ -69,6 +80,62 @@ r -= it.weight;
 if (r <= 0) return it;
 }
 return items[0];
+}
+
+function polygonArea(points) {
+let sum = 0;
+for (let i = 0; i < points.length; i++) {
+const a = points[i], b = points[(i + 1) % points.length];
+sum += a[0] * b[1] - b[0] * a[1];
+}
+return Math.abs(sum / 2);
+}
+
+function buildHexField(size) {
+const sqrt3 = Math.sqrt(3);
+const result = [];
+let id = 1;
+for (let q = -2; q <= 2; q++) {
+for (let s = -2; s <= 2; s++) {
+const x = size * sqrt3 * (q + s / 2);
+const y = size * 1.5 * s;
+const latlng = toLatLng(x, y);
+const owner = weightedRandom(FACTIONS);
+result.push({
+id: id++,
+q: q,
+s: s,
+size: size,
+latlng: latlng,
+owner: owner.id,
+ownerName: owner.name,
+color: owner.color,
+hp: Math.floor(Math.random() * 60) + 40
+});
+}
+}
+return result;
+}
+
+function rebuild() {
+if (gridLayer) {
+map.removeLayer(gridLayer);
+gridLayer = null;
+}
+outlineLayer.setLatLngs(outline);
+if (outline.length >= 3) {
+const size = 3;
+hexes = buildHexField(size);
+countEl.textContent = hexes.length;
+sizeEl.textContent = size.toFixed(1);
+gridLayer = new HexGridLayer(hexes).addTo(map);
+setStatus('Гексы построены внутри контура здания.');
+} else {
+hexes = [];
+countEl.textContent = '0';
+sizeEl.textContent = '—';
+setStatus('Нажмите «Разметить корпус»');
+}
 }
 
 const HexGridLayer = L.Layer.extend({
@@ -186,44 +253,65 @@ this._draw();
 }
 });
 
-function buildHexField(size) {
-const sqrt3 = Math.sqrt(3);
-const result = [];
-let id = 1;
-for (let q = -2; q <= 2; q++) {
-for (let s = -2; s <= 2; s++) {
-const x = size * sqrt3 * (q + s / 2);
-const y = size * 1.5 * s;
-const latlng = toLatLng(x, y);
-const owner = weightedRandom(FACTIONS);
-result.push({
-id: id++,
-q: q,
-s: s,
-size: size,
-latlng: latlng,
-owner: owner.id,
-ownerName: owner.name,
-color: owner.color,
-hp: Math.floor(Math.random() * 60) + 40
-});
+function selectBuilding(polygon) {
+outline = polygon;
+rebuild();
+if (outline.length >= 3) {
+map.fitBounds(L.latLngBounds(outline).pad(0.6), { maxZoom: 20, animate: true });
 }
-}
-return result;
+showToast('Корпус выбран', '#66bb6a');
 }
 
-function rebuild() {
-if (gridLayer) {
-map.removeLayer(gridLayer);
-gridLayer = null;
+function renderCandidates(buildings) {
+candidatesEl.innerHTML = '';
+if (!buildings.length) {
+setStatus('Здания не найдены рядом с точкой.');
+return;
 }
-const size = 3;
-hexes = buildHexField(size);
-countEl.textContent = hexes.length;
-sizeEl.textContent = size.toFixed(1);
-gridLayer = new HexGridLayer(hexes).addTo(map);
-setStatus('Гексы построены (тестовая сетка 5×5). Наведите на гекс.');
+buildings.forEach((b, i) => {
+const btn = document.createElement('button');
+const name = b.tags && b.tags.name ? b.tags.name : ('Здание #' + (i + 1));
+btn.textContent = name;
+btn.onclick = function () {
+if (b.geometry) {
+const polygon = b.geometry.map(g => [g.lat, g.lon]);
+selectBuilding(polygon);
 }
+};
+candidatesEl.appendChild(btn);
+});
+setStatus('Выберите корпус из списка.');
+}
+
+async function loadBuildings() {
+setStatus('Загрузка зданий из Overpass API...');
+const query = '[out:json];(way["building"](around:200,' + center[0] + ',' + center[1] + '););out geom;';
+try {
+const res = await fetch('https://overpass-api.de/api/interpreter', {
+method: 'POST',
+body: 'data=' + encodeURIComponent(query)
+});
+if (!res.ok) throw new Error('HTTP ' + res.status);
+const data = await res.json();
+const buildings = data.elements.filter(e => e.geometry && e.geometry.length >= 3);
+renderCandidates(buildings);
+} catch (err) {
+console.error('Overpass API error:', err);
+setStatus('Ошибка загрузки: ' + err.message);
+showToast('Overpass API недоступен', '#ef5350');
+}
+}
+
+editBtn.onclick = function () {
+loadBuildings();
+};
+
+document.getElementById('clearBtn').onclick = function () {
+outline = [];
+candidatesEl.innerHTML = '';
+rebuild();
+showToast('Контур сброшен', '#1a1a1a');
+};
 
 rebuild();
 })();
