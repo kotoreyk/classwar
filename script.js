@@ -31,6 +31,21 @@ maxZoom: 21
 const countEl = document.getElementById('hexCount');
 const sizeEl = document.getElementById('hexSize');
 const statusEl = document.getElementById('statusLine');
+const toastEl = document.getElementById('toast');
+
+let toastTimer = null;
+
+function setStatus(text) {
+statusEl.textContent = text;
+}
+
+function showToast(text, color) {
+const c = color || '#1a1a1a';
+toastEl.innerHTML = '<span class="dot" style="background:' + c + '"></span>' + text;
+toastEl.classList.add('show');
+clearTimeout(toastTimer);
+toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2400);
+}
 
 function toLocal(latlng) {
 return [
@@ -67,12 +82,15 @@ canvas.className = 'hex-grid-canvas';
 this._canvas = canvas;
 this._ctx = canvas.getContext('2d');
 map.getContainer().appendChild(canvas);
+this._click = this._onClick.bind(this);
+canvas.addEventListener('click', this._click);
 map.on('move zoom resize viewreset', this._resize, this);
 this._resize();
 this._draw();
 return this;
 },
 onRemove: function (map) {
+this._canvas.removeEventListener('click', this._click);
 map.off('move zoom resize viewreset', this._resize, this);
 this._canvas.remove();
 },
@@ -115,6 +133,32 @@ ctx.strokeStyle = hex.color;
 ctx.lineWidth = 1;
 ctx.stroke();
 ctx.restore();
+},
+_hitTest: function (x, y) {
+let best = null;
+let bestDist = Infinity;
+for (const hex of this.items) {
+const p = this._map.latLngToContainerPoint(hex.latlng);
+const r = this._pixelRadius(hex);
+const d = Math.hypot(p.x - x, p.y - y);
+if (d < r * 0.92 && d < bestDist) {
+bestDist = d;
+best = hex;
+}
+}
+return best;
+},
+_localCoords: function (e) {
+const rect = this._canvas.getBoundingClientRect();
+return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+},
+_onClick: function (e) {
+const c = this._localCoords(e);
+const hex = this._hitTest(c.x, c.y);
+if (!hex) return;
+const msg = 'Сектор #' + hex.id + ' · ' + hex.ownerName;
+console.log('Вы кликнули на сектор #' + hex.id + '. Текущий владелец: ' + hex.ownerName, hex);
+showToast(msg, hex.color);
 }
 });
 
@@ -154,11 +198,7 @@ hexes = buildHexField(size);
 countEl.textContent = hexes.length;
 sizeEl.textContent = size.toFixed(1);
 gridLayer = new HexGridLayer(hexes).addTo(map);
-setStatus('Гексы построены (тестовая сетка 5×5).');
-}
-
-function setStatus(text) {
-statusEl.textContent = text;
+setStatus('Гексы построены (тестовая сетка 5×5). Кликните по гексу.');
 }
 
 rebuild();
