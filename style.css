@@ -130,34 +130,6 @@ border-radius: var(--radius-sm);
 border-left: 2px solid var(--border-strong);
 }
 
-.candidates {
-display: flex;
-flex-direction: column;
-gap: 6px;
-margin-bottom: 16px;
-}
-
-.candidates button {
-font-family: inherit;
-font-size: 12px;
-text-align: left;
-padding: 10px 12px;
-color: var(--text);
-background: var(--surface);
-border: 1px solid var(--border);
-border-radius: var(--radius-sm);
-cursor: pointer;
-transition: background 0.12s ease;
-}
-
-.candidates button:hover {
-background: var(--surface-2);
-}
-
-.candidates:empty {
-display: none;
-}
-
 .controls {
 display: grid;
 grid-template-columns: 1fr 1fr;
