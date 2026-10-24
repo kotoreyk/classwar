@@ -16,6 +16,8 @@ const FACTIONS = [
 let center = DEFAULT_CENTER.slice();
 let outline = [];
 let hexes = [];
+let hexRadius = 0;
+let manualRadius = 0;
 let gridLayer = null;
 let editing = false;
 let draft = [];
@@ -48,8 +50,21 @@ const statusEl = document.getElementById('statusLine');
 const editBtn = document.getElementById('editBtn');
 const geojsonInput = document.getElementById('geojsonInput');
 const toastEl = document.getElementById('toast');
+const densitySlider = document.getElementById('densitySlider');
+const densityValue = document.getElementById('densityValue');
+const autoBtn = document.getElementById('autoBtn');
+const legendEl = document.getElementById('legend');
 
 let toastTimer = null;
+
+FACTIONS.forEach(f => {
+const row = document.createElement('div');
+row.className = 'legend-item';
+row.innerHTML =
+'<div class="legend-swatch" style="color:' + f.color + '"></div>' +
+'<span>' + f.name + '</span>';
+legendEl.appendChild(row);
+});
 
 function setStatus(text) {
 statusEl.textContent = text;
@@ -169,9 +184,40 @@ if (outline.length < 3) return { hexes: [], radius: 0, area: 0 };
 const polyLocal = outline.map(toLocal);
 const area = polygonArea(polyLocal);
 if (area < 1) return { hexes: [], radius: 0, area: area };
-const r = computeAdaptiveRadius(area);
+let r;
+if (manualRadius > 0) {
+r = manualRadius;
+} else {
+r = computeAdaptiveRadius(area);
+}
 const field = buildHexField(polyLocal, r);
 return { hexes: field, radius: r, area: area };
+}
+
+function rebuild() {
+if (gridLayer) {
+map.removeLayer(gridLayer);
+gridLayer = null;
+}
+outlineLayer.setLatLngs(outline);
+const result = generateHexes();
+hexes = result.hexes;
+hexRadius = result.radius;
+countEl.textContent = hexes.length;
+sizeEl.textContent = hexRadius ? hexRadius.toFixed(1) : '—';
+if (hexes.length) {
+gridLayer = new HexGridLayer(hexes).addTo(map);
+setStatus('Гексы построены внутри контура здания.');
+} else if (outline.length >= 3) {
+if (result.area < 5) {
+setStatus('Площадь здания менее 5 м² — слишком мало для сетки.');
+} else {
+setStatus('Не удалось разместить гексы. Попробуйте уменьшить размер.');
+}
+} else {
+setStatus('Нажмите «Разметить корпус»');
+}
+updateDensityUI();
 }
 
 const HexGridLayer = L.Layer.extend({
@@ -196,7 +242,7 @@ canvas.addEventListener('mousemove', this._move);
 canvas.addEventListener('mouseleave', this._leave);
 map.on('move zoom resize viewreset', this._resize, this);
 this._resize();
-this._scheduleRedraw();
+this._draw();
 return this;
 },
 onRemove: function (map) {
@@ -303,30 +349,6 @@ this._scheduleRedraw();
 }
 });
 
-function rebuild() {
-if (gridLayer) {
-map.removeLayer(gridLayer);
-gridLayer = null;
-}
-outlineLayer.setLatLngs(outline);
-const result = generateHexes();
-hexes = result.hexes;
-countEl.textContent = hexes.length;
-sizeEl.textContent = result.radius ? result.radius.toFixed(1) : '—';
-if (hexes.length) {
-gridLayer = new HexGridLayer(hexes).addTo(map);
-setStatus('Гексы построены внутри контура здания.');
-} else if (outline.length >= 3) {
-if (result.area < 5) {
-setStatus('Площадь здания менее 5 м² — слишком мало для сетки.');
-} else {
-setStatus('Не удалось разместить гексы. Попробуйте уменьшить размер.');
-}
-} else {
-setStatus('Нажмите «Разметить корпус»');
-}
-}
-
 function updateDraft() {
 draftLayer.clearLayers();
 draft.forEach(p => {
@@ -366,6 +388,34 @@ if (gridLayer && gridLayer._canvas) {
 gridLayer._canvas.style.pointerEvents = value ? 'none' : 'auto';
 }
 }
+
+function updateDensityUI() {
+if (manualRadius > 0) {
+densitySlider.value = manualRadius;
+densityValue.textContent = manualRadius.toFixed(1) + ' м';
+autoBtn.classList.remove('active');
+} else {
+densityValue.textContent = 'авто';
+autoBtn.classList.add('active');
+if (hexRadius > 0) {
+densitySlider.value = hexRadius;
+}
+}
+}
+
+densitySlider.oninput = function () {
+manualRadius = parseFloat(this.value);
+densityValue.textContent = manualRadius.toFixed(1) + ' м';
+autoBtn.classList.remove('active');
+rebuild();
+};
+
+autoBtn.onclick = function () {
+manualRadius = 0;
+updateDensityUI();
+rebuild();
+showToast('Автоматический размер', '#1a1a1a');
+};
 
 function extractPolygonFromGeoJSON(data) {
 if (data.type === 'FeatureCollection') {

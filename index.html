@@ -29,10 +29,19 @@
 Загрузить GeoJSON
 <input type="file" id="geojsonInput" accept=".geojson,.json" />
 </label>
+<div class="density-control">
+<div class="density-header">
+<span class="density-label">Плотность гексов</span>
+<span class="density-value" id="densityValue">авто</span>
+</div>
+<input type="range" id="densitySlider" min="0.8" max="20" step="0.1" value="3" />
+<button id="autoBtn" type="button" class="auto-btn active">Авто</button>
+</div>
 <div class="controls">
 <button id="editBtn" type="button">Разметить корпус</button>
 <button id="clearBtn" type="button" class="ghost">Сбросить</button>
 </div>
+<div class="legend" id="legend"></div>
 </div>
 <div class="toast" id="toast"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
