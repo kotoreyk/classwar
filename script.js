@@ -130,19 +130,6 @@ const r = Math.sqrt(area / (target * HEX_AREA_COEFF));
 return Math.max(1.5, Math.min(20, r));
 }
 
-function getHexVertices(cx, cy, size) {
-const sqrt3 = Math.sqrt(3);
-const vertices = [];
-for (let i = 0; i < 6; i++) {
-const angle = Math.PI / 3 * i - Math.PI / 6;
-vertices.push([
-cx + size * Math.cos(angle),
-cy + size * Math.sin(angle)
-]);
-}
-return vertices;
-}
-
 function buildHexField(polyLocal, size) {
 const sqrt3 = Math.sqrt(3);
 const bounds = polygonBounds(polyLocal);
@@ -159,15 +146,7 @@ for (let q = -qRange; q <= qRange; q++) {
 for (let s = -sRange; s <= sRange; s++) {
 const x = cx + size * sqrt3 * (q + s / 2);
 const y = cy + size * 1.5 * s;
-const vertices = getHexVertices(x, y, size);
-let allInside = true;
-for (const v of vertices) {
-if (!pointInPolygon(v[0], v[1], polyLocal)) {
-allInside = false;
-break;
-}
-}
-if (!allInside) continue;
+if (!pointInPolygon(x, y, polyLocal)) continue;
 const owner = weightedRandom(FACTIONS);
 result.push({
 id: id++,
@@ -216,6 +195,7 @@ const HexGridLayer = L.Layer.extend({
 initialize: function (items) {
 this.items = items;
 this._hovered = null;
+this._raf = null;
 },
 onAdd: function (map) {
 this._map = map;
@@ -233,10 +213,11 @@ canvas.addEventListener('mousemove', this._move);
 canvas.addEventListener('mouseleave', this._leave);
 map.on('move zoom resize viewreset', this._resize, this);
 this._resize();
-this._draw();
+this._loop();
 return this;
 },
 onRemove: function (map) {
+cancelAnimationFrame(this._raf);
 this._canvas.removeEventListener('click', this._click);
 this._canvas.removeEventListener('mousemove', this._move);
 this._canvas.removeEventListener('mouseleave', this._leave);
@@ -254,6 +235,10 @@ this._draw();
 _pixelRadius: function (hex) {
 const mPerPx = 156543.03392 * Math.cos(center[0] * Math.PI / 180) / Math.pow(2, this._map.getZoom());
 return hex.size / mPerPx;
+},
+_loop: function () {
+this._draw();
+this._raf = requestAnimationFrame(() => this._loop());
 },
 _draw: function () {
 const ctx = this._ctx;
@@ -318,14 +303,12 @@ const hex = this._hitTest(c.x, c.y);
 if (hex !== this._hovered) {
 this._hovered = hex;
 this._canvas.style.cursor = hex ? 'pointer' : 'default';
-this._draw();
 }
 },
 _onLeave: function () {
 if (this._hovered) {
 this._hovered = null;
 this._canvas.style.cursor = 'default';
-this._draw();
 }
 }
 });
