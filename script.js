@@ -1,7 +1,6 @@
 (function () {
 const DEFAULT_CENTER = [48.4827, 135.0838];
 const M_PER_DEG_LAT = 110540;
-const M_PER_DEG_LNG = 82650;
 const HEX_AREA_COEFF = 3 * Math.sqrt(3) / 2;
 
 const FACTIONS = [
@@ -78,9 +77,13 @@ clearTimeout(toastTimer);
 toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2400);
 }
 
+function metersPerDegLng(lat) {
+return 111320 * Math.cos(lat * Math.PI / 180);
+}
+
 function toLocal(latlng) {
 return [
-(latlng[1] - center[1]) * M_PER_DEG_LNG,
+(latlng[1] - center[1]) * metersPerDegLng(center[0]),
 (latlng[0] - center[0]) * M_PER_DEG_LAT
 ];
 }
@@ -88,7 +91,7 @@ return [
 function toLatLng(x, y) {
 return [
 center[0] + y / M_PER_DEG_LAT,
-center[1] + x / M_PER_DEG_LNG
+center[1] + x / metersPerDegLng(center[0])
 ];
 }
 
