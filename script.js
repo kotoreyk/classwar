@@ -194,32 +194,6 @@ const field = buildHexField(polyLocal, r);
 return { hexes: field, radius: r, area: area };
 }
 
-function rebuild() {
-if (gridLayer) {
-map.removeLayer(gridLayer);
-gridLayer = null;
-}
-outlineLayer.setLatLngs(outline);
-const result = generateHexes();
-hexes = result.hexes;
-hexRadius = result.radius;
-countEl.textContent = hexes.length;
-sizeEl.textContent = hexRadius ? hexRadius.toFixed(1) : '—';
-if (hexes.length) {
-gridLayer = new HexGridLayer(hexes).addTo(map);
-setStatus('Гексы построены внутри контура здания.');
-} else if (outline.length >= 3) {
-if (result.area < 5) {
-setStatus('Площадь здания менее 5 м² — слишком мало для сетки.');
-} else {
-setStatus('Не удалось разместить гексы. Попробуйте уменьшить размер.');
-}
-} else {
-setStatus('Нажмите «Разметить корпус»');
-}
-updateDensityUI();
-}
-
 const HexGridLayer = L.Layer.extend({
 initialize: function (items) {
 this.items = items;
@@ -310,7 +284,7 @@ for (const hex of this.items) {
 const p = this._map.latLngToContainerPoint(hex.latlng);
 const r = this._pixelRadius(hex);
 const d = Math.hypot(p.x - x, p.y - y);
-if (d < r * 0.92 && d < bestDist) {
+if (d < r && d < bestDist) {
 bestDist = d;
 best = hex;
 }
@@ -348,6 +322,32 @@ this._scheduleRedraw();
 }
 }
 });
+
+function rebuild() {
+if (gridLayer) {
+map.removeLayer(gridLayer);
+gridLayer = null;
+}
+outlineLayer.setLatLngs(outline);
+const result = generateHexes();
+hexes = result.hexes;
+hexRadius = result.radius;
+countEl.textContent = hexes.length;
+sizeEl.textContent = hexRadius ? hexRadius.toFixed(1) : '—';
+if (hexes.length) {
+gridLayer = new HexGridLayer(hexes).addTo(map);
+setStatus('Гексы построены внутри контура здания.');
+} else if (outline.length >= 3) {
+if (result.area < 5) {
+setStatus('Площадь здания менее 5 м² — слишком мало для сетки.');
+} else {
+setStatus('Не удалось разместить гексы. Попробуйте уменьшить размер.');
+}
+} else {
+setStatus('Нажмите «Разметить корпус»');
+}
+updateDensityUI();
+}
 
 function updateDraft() {
 draftLayer.clearLayers();
