@@ -2,6 +2,7 @@
 const DEFAULT_CENTER = [48.4827, 135.0838];
 const M_PER_DEG_LAT = 110540;
 const M_PER_DEG_LNG = 82650;
+const HEX_AREA_COEFF = 3 * Math.sqrt(3) / 2;
 
 const FACTIONS = [
 { id: 'neutral', name: 'Нейтрально', color: '#b5b5b5', weight: 5 },
@@ -98,6 +99,15 @@ if (intersect) inside = !inside;
 return inside;
 }
 
+function polygonArea(points) {
+let sum = 0;
+for (let i = 0; i < points.length; i++) {
+const a = points[i], b = points[(i + 1) % points.length];
+sum += a[0] * b[1] - b[0] * a[1];
+}
+return Math.abs(sum / 2);
+}
+
 function polygonBounds(points) {
 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 for (const p of points) {
@@ -112,6 +122,12 @@ return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
 function polygonCentroid(points) {
 const bounds = polygonBounds(points);
 return [(bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2];
+}
+
+function computeAdaptiveRadius(area) {
+const target = Math.round(Math.max(25, Math.min(150, Math.sqrt(area) / 2)));
+const r = Math.sqrt(area / (target * HEX_AREA_COEFF));
+return Math.max(1.5, Math.min(20, r));
 }
 
 function buildHexField(polyLocal, size) {
@@ -148,31 +164,14 @@ hp: Math.floor(Math.random() * 60) + 40
 return result;
 }
 
-function rebuild() {
-if (gridLayer) {
-map.removeLayer(gridLayer);
-gridLayer = null;
-}
-outlineLayer.setLatLngs(outline);
-if (outline.length >= 3) {
+function generateHexes() {
+if (outline.length < 3) return { hexes: [], radius: 0, area: 0 };
 const polyLocal = outline.map(toLocal);
-const bounds = polygonBounds(polyLocal);
-const size = Math.max(1.5, Math.min(5, (bounds.maxX - bounds.minX) / 15));
-hexes = buildHexField(polyLocal, size);
-countEl.textContent = hexes.length;
-sizeEl.textContent = size.toFixed(1);
-if (hexes.length) {
-gridLayer = new HexGridLayer(hexes).addTo(map);
-setStatus('Гексы построены внутри контура здания.');
-} else {
-setStatus('Не удалось разместить гексы. Попробуйте уменьшить размер.');
-}
-} else {
-hexes = [];
-countEl.textContent = '0';
-sizeEl.textContent = '—';
-setStatus('Нажмите «Разметить корпус»');
-}
+const area = polygonArea(polyLocal);
+if (area < 1) return { hexes: [], radius: 0, area: area };
+const r = computeAdaptiveRadius(area);
+const field = buildHexField(polyLocal, r);
+return { hexes: field, radius: r, area: area };
 }
 
 const HexGridLayer = L.Layer.extend({
@@ -196,10 +195,11 @@ canvas.addEventListener('mousemove', this._move);
 canvas.addEventListener('mouseleave', this._leave);
 map.on('move zoom resize viewreset', this._resize, this);
 this._resize();
-this._draw();
+this._loop = setInterval(() => this._draw(), 100);
 return this;
 },
 onRemove: function (map) {
+clearInterval(this._loop);
 this._canvas.removeEventListener('click', this._click);
 this._canvas.removeEventListener('mousemove', this._move);
 this._canvas.removeEventListener('mouseleave', this._leave);
@@ -226,8 +226,7 @@ for (const hex of this.items) {
 const p = this._map.latLngToContainerPoint(hex.latlng);
 const r = this._pixelRadius(hex);
 if (p.x < -r || p.x > size.x + r || p.y < -r || p.y > size.y + r) continue;
-const isHovered = hex === this._hovered;
-this._drawHex(ctx, p.x, p.y, r, hex, isHovered);
+this._drawHex(ctx, p.x, p.y, r, hex, hex === this._hovered);
 }
 },
 _drawHex: function (ctx, x, y, r, hex, hovered) {
@@ -292,6 +291,30 @@ this._draw();
 }
 }
 });
+
+function rebuild() {
+if (gridLayer) {
+map.removeLayer(gridLayer);
+gridLayer = null;
+}
+outlineLayer.setLatLngs(outline);
+const result = generateHexes();
+hexes = result.hexes;
+countEl.textContent = hexes.length;
+sizeEl.textContent = result.radius ? result.radius.toFixed(1) : '—';
+if (hexes.length) {
+gridLayer = new HexGridLayer(hexes).addTo(map);
+setStatus('Гексы построены внутри контура здания.');
+} else if (outline.length >= 3) {
+if (result.area < 5) {
+setStatus('Площадь здания менее 5 м² — слишком мало для сетки.');
+} else {
+setStatus('Не удалось разместить гексы. Попробуйте уменьшить размер.');
+}
+} else {
+setStatus('Нажмите «Разметить корпус»');
+}
+}
 
 function updateDraft() {
 draftLayer.clearLayers();
