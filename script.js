@@ -164,31 +164,14 @@ hp: Math.floor(Math.random() * 60) + 40
 return result;
 }
 
-function rebuild() {
-if (gridLayer) {
-map.removeLayer(gridLayer);
-gridLayer = null;
-}
-outlineLayer.setLatLngs(outline);
-if (outline.length >= 3) {
+function generateHexes() {
+if (outline.length < 3) return { hexes: [], radius: 0, area: 0 };
 const polyLocal = outline.map(toLocal);
-const bounds = polygonBounds(polyLocal);
-const size = Math.max(1.5, Math.min(5, (bounds.maxX - bounds.minX) / 15));
-hexes = buildHexField(polyLocal, size);
-countEl.textContent = hexes.length;
-sizeEl.textContent = size.toFixed(1);
-if (hexes.length) {
-gridLayer = new HexGridLayer(hexes).addTo(map);
-setStatus('Гексы построены внутри контура здания.');
-} else {
-setStatus('Не удалось разместить гексы. Попробуйте уменьшить размер.');
-}
-} else {
-hexes = [];
-countEl.textContent = '0';
-sizeEl.textContent = '—';
-setStatus('Нажмите «Разметить корпус»');
-}
+const area = polygonArea(polyLocal);
+if (area < 1) return { hexes: [], radius: 0, area: area };
+const r = computeAdaptiveRadius(area);
+const field = buildHexField(polyLocal, r);
+return { hexes: field, radius: r, area: area };
 }
 
 const HexGridLayer = L.Layer.extend({
@@ -213,7 +196,7 @@ canvas.addEventListener('mousemove', this._move);
 canvas.addEventListener('mouseleave', this._leave);
 map.on('move zoom resize viewreset', this._resize, this);
 this._resize();
-this._loop();
+this._scheduleRedraw();
 return this;
 },
 onRemove: function (map) {
@@ -226,19 +209,24 @@ this._canvas.remove();
 },
 _resize: function () {
 const size = this._map.getSize();
-this._canvas.width = size.x;
-this._canvas.height = size.y;
+const dpr = window.devicePixelRatio || 1;
+this._canvas.width = size.x * dpr;
+this._canvas.height = size.y * dpr;
 this._canvas.style.width = size.x + 'px';
 this._canvas.style.height = size.y + 'px';
+this._ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 this._draw();
 },
 _pixelRadius: function (hex) {
 const mPerPx = 156543.03392 * Math.cos(center[0] * Math.PI / 180) / Math.pow(2, this._map.getZoom());
 return hex.size / mPerPx;
 },
-_loop: function () {
+_scheduleRedraw: function () {
+if (this._raf) return;
+this._raf = requestAnimationFrame(() => {
+this._raf = null;
 this._draw();
-this._raf = requestAnimationFrame(() => this._loop());
+});
 },
 _draw: function () {
 const ctx = this._ctx;
@@ -303,15 +291,41 @@ const hex = this._hitTest(c.x, c.y);
 if (hex !== this._hovered) {
 this._hovered = hex;
 this._canvas.style.cursor = hex ? 'pointer' : 'default';
+this._scheduleRedraw();
 }
 },
 _onLeave: function () {
 if (this._hovered) {
 this._hovered = null;
 this._canvas.style.cursor = 'default';
+this._scheduleRedraw();
 }
 }
 });
+
+function rebuild() {
+if (gridLayer) {
+map.removeLayer(gridLayer);
+gridLayer = null;
+}
+outlineLayer.setLatLngs(outline);
+const result = generateHexes();
+hexes = result.hexes;
+countEl.textContent = hexes.length;
+sizeEl.textContent = result.radius ? result.radius.toFixed(1) : '—';
+if (hexes.length) {
+gridLayer = new HexGridLayer(hexes).addTo(map);
+setStatus('Гексы построены внутри контура здания.');
+} else if (outline.length >= 3) {
+if (result.area < 5) {
+setStatus('Площадь здания менее 5 м² — слишком мало для сетки.');
+} else {
+setStatus('Не удалось разместить гексы. Попробуйте уменьшить размер.');
+}
+} else {
+setStatus('Нажмите «Разметить корпус»');
+}
+}
 
 function updateDraft() {
 draftLayer.clearLayers();
