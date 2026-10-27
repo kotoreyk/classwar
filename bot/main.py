@@ -11,8 +11,6 @@ async def check_connection():
         logging.info(f"✅ Подключение успешно! Бот: @{me.username} (ID: {me.user_id})")
     except Exception as e:
         logging.error(f"❌ Ошибка авторизации: {e}")
-    finally:
-        await bot.session.close()
 
 if __name__ == "__main__":
     asyncio.run(check_connection())
