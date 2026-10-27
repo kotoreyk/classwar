@@ -1,4 +1,3 @@
-# main.py (версия 1)
 import asyncio
 import os
 from dotenv import load_dotenv
@@ -13,7 +12,6 @@ dp = Dispatcher()
 
 @dp.message()
 async def echo_handler(message: Message):
-    # Отвечаем пользователю тем же текстом, что он прислал
     await message.answer(f"Эхо: {message.text}")
 
 async def main():
