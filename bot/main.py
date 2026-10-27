@@ -1,23 +1,18 @@
-# main.py (версия 1)
 import asyncio
-import os
-from dotenv import load_dotenv
-from maxapi import Bot, Dispatcher
-from maxapi.types import Message
+import logging
+from maxapi import Bot
 
-load_dotenv()
+logging.basicConfig(level=logging.INFO)
 
-TOKEN = os.getenv("MAX_TOKEN")
-bot = Bot(token=TOKEN)
-dp = Dispatcher()
-
-@dp.message()
-async def echo_handler(message: Message):
-    # Отвечаем пользователю тем же текстом, что он прислал
-    await message.answer(f"Эхо: {message.text}")
-
-async def main():
-    await dp.start_polling(bot)
+async def check_connection():
+    bot = Bot(token="f9LHodD0cOJp8Vp7atI3oHwYXw3tAM6MDDBT_kVJjss6vBRksrWsXNSFzofFzIqHmwb5hcGTMsmi0cbLr2Rw")
+    try:
+        me = await bot.get_me()
+        logging.info(f"✅ Подключение успешно! Бот: @{me.username} (ID: {me.user_id})")
+    except Exception as e:
+        logging.error(f"❌ Ошибка авторизации: {e}")
+    finally:
+        await bot.session.close()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(check_connection())
