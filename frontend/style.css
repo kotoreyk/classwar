@@ -255,3 +255,27 @@ html, body {
 .hud::-webkit-scrollbar { width: 6px; }
 .hud::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 .hud::-webkit-scrollbar-track { background: transparent; }
+
+.legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: currentColor;
+  flex-shrink: 0;
+}

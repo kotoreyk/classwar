@@ -4,14 +4,22 @@
   const HEX_AREA_COEFF = 3 * Math.sqrt(3) / 2;
   const MIN_HEX_RADIUS = 0.8;
   const MAX_HEX_RADIUS = 20;
-  const FACTIONS = [
-    { id: 'neutral', name: 'Нейтрально', color: '#b5b5b5', weight: 5 },
-    { id: '10А', name: '10 А', color: '#ef5350', weight: 2 },
-    { id: '10Б', name: '10 Б', color: '#42a5f5', weight: 2 },
-    { id: '11А', name: '11 А', color: '#66bb6a', weight: 2 },
-    { id: '11Б', name: '11 Б', color: '#ffa726', weight: 2 },
-    { id: '11В', name: '11 В', color: '#ab47bc', weight: 2 }
+  const MIN_HEXES_PER_GROUP = 3;
+
+  const GROUPS_CONFIG = [
+    { id: '9А', name: '9 А', color: '#ef5350' },
+    { id: '9Б', name: '9 Б', color: '#42a5f5' },
+    { id: '9В', name: '9 В', color: '#66bb6a' },
+    { id: '10А', name: '10 А', color: '#ffa726' },
+    { id: '10Б', name: '10 Б', color: '#ab47bc' },
+    { id: '10В', name: '10 В', color: '#26c6da' },
+    { id: '10Г', name: '10 Г', color: '#ec407a' },
+    { id: '11А', name: '11 А', color: '#8d6e63' },
+    { id: '11Б', name: '11 Б', color: '#78909c' },
+    { id: '11В', name: '11 В', color: '#7e57c2' }
   ];
+
+  const NEUTRAL = { id: 'neutral', name: 'Нейтрально', color: '#b5b5b5' };
 
   let center = DEFAULT_CENTER.slice();
   let outline = [];
@@ -49,6 +57,7 @@
   const statusEl = document.getElementById('statusLine');
   const editBtn = document.getElementById('editBtn');
   const toastEl = document.getElementById('toast');
+  const legendEl = document.getElementById('legend');
   let toastTimer = null;
 
   function setStatus(text) { statusEl.textContent = text; }
@@ -61,13 +70,21 @@
     toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2400);
   }
 
-  const legendEl = document.getElementById('legend');
-  FACTIONS.forEach(f => {
-    const row = document.createElement('div');
-    row.className = 'legend-item';
-    row.innerHTML = '<div class="legend-swatch" style="color:' + f.color + '"></div><span>' + f.name + '</span>';
-    legendEl.appendChild(row);
-  });
+  function buildLegend() {
+    legendEl.innerHTML = '';
+    GROUPS_CONFIG.forEach(g => {
+      const row = document.createElement('div');
+      row.className = 'legend-item';
+      row.innerHTML = '<div class="legend-swatch" style="color:' + g.color + '"></div><span>' + g.name + '</span>';
+      legendEl.appendChild(row);
+    });
+    const neutralRow = document.createElement('div');
+    neutralRow.className = 'legend-item';
+    neutralRow.innerHTML = '<div class="legend-swatch" style="color:' + NEUTRAL.color + '"></div><span>' + NEUTRAL.name + '</span>';
+    legendEl.appendChild(neutralRow);
+  }
+
+  buildLegend();
 
   function metersPerDegLng(lat) {
     return 111320 * Math.cos(lat * Math.PI / 180);
@@ -123,20 +140,41 @@
     return [(bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2];
   }
 
-  function weightedRandom(items) {
-    const total = items.reduce((s, it) => s + it.weight, 0);
-    let r = Math.random() * total;
-    for (const it of items) {
-      r -= it.weight;
-      if (r <= 0) return it;
-    }
-    return items[0];
-  }
-
   function computeAdaptiveRadius(area) {
     const target = Math.round(Math.max(25, Math.min(150, Math.sqrt(area) / 2)));
     const r = Math.sqrt(area / (target * HEX_AREA_COEFF));
     return Math.max(MIN_HEX_RADIUS, Math.min(MAX_HEX_RADIUS, r));
+  }
+
+  function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function assignOwners(hexList) {
+    const shuffled = shuffleArray([...hexList]);
+    const allGroups = [...GROUPS_CONFIG];
+    let idx = 0;
+
+    allGroups.forEach(group => {
+      for (let i = 0; i < MIN_HEXES_PER_GROUP && idx < shuffled.length; i++) {
+        shuffled[idx].owner = group.id;
+        shuffled[idx].ownerName = group.name;
+        shuffled[idx].color = group.color;
+        idx++;
+      }
+    });
+
+    while (idx < shuffled.length) {
+      const group = allGroups[Math.floor(Math.random() * allGroups.length)];
+      shuffled[idx].owner = group.id;
+      shuffled[idx].ownerName = group.name;
+      shuffled[idx].color = group.color;
+      idx++;
+    }
   }
 
   function buildHexField(polyLocal, size) {
@@ -157,17 +195,15 @@
         const x = cx + size * sqrt3 * (q + s / 2);
         const y = cy + size * 1.5 * s;
         if (!pointInPolygon(x, y, polyLocal)) continue;
-        const owner = weightedRandom(FACTIONS);
         result.push({
           id: id++,
           q: q,
           s: s,
           size: size,
           latlng: toLatLng(x, y),
-          owner: owner.id,
-          ownerName: owner.name,
-          color: owner.color,
-          hp: Math.floor(Math.random() * 60) + 40
+          owner: null,
+          ownerName: null,
+          color: null
         });
       }
     }
@@ -181,6 +217,7 @@
     if (area < 1) return { hexes: [], radius: 0, area: area };
     const r = computeAdaptiveRadius(area);
     const field = buildHexField(polyLocal, r);
+    assignOwners(field);
     return { hexes: field, radius: r, area: area };
   }
 
