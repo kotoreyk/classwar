@@ -28,6 +28,7 @@
   let gridLayer = null;
   let editing = false;
   let draft = [];
+  let currentAddress = '';
 
   const map = L.map('map', {
     center: DEFAULT_CENTER,
@@ -55,9 +56,12 @@
   const countEl = document.getElementById('hexCount');
   const sizeEl = document.getElementById('hexSize');
   const statusEl = document.getElementById('statusLine');
+  const buildingNameEl = document.getElementById('buildingName');
   const editBtn = document.getElementById('editBtn');
   const toastEl = document.getElementById('toast');
   const legendEl = document.getElementById('legend');
+  const addressInput = document.getElementById('addressInput');
+  const searchBtn = document.getElementById('searchBtn');
   let toastTimer = null;
 
   function setStatus(text) { statusEl.textContent = text; }
@@ -68,6 +72,10 @@
     toastEl.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2400);
+  }
+
+  function setBuildingName(name) {
+    buildingNameEl.textContent = name || 'Адрес не задан';
   }
 
   function buildLegend() {
@@ -220,6 +228,119 @@
     assignOwners(field);
     return { hexes: field, radius: r, area: area };
   }
+
+  async function searchBuilding(address) {
+    setStatus('Поиск адреса...');
+    try {
+      const res = await fetch(
+        'https://nominatim.openstreetmap.org/search?format=json&q=' +
+          encodeURIComponent(address) +
+          '&limit=1',
+        {
+          headers: { 'Accept-Language': 'ru' }
+        }
+      );
+      if (!res.ok) throw new Error('Ошибка геокодера');
+      const data = await res.json();
+      if (!data || data.length === 0) {
+        throw new Error('Адрес не найден');
+      }
+      return {
+        lat: parseFloat(data[0].lat),
+        lng: parseFloat(data[0].lon),
+        displayName: data[0].display_name
+      };
+    } catch (e) {
+      throw new Error('Поиск: ' + e.message);
+    }
+  }
+
+  async function fetchBuildingOutline(lat, lng) {
+    setStatus('Загрузка контура здания...');
+    const radius = 30;
+    const query = `
+      [out:json][timeout:10];
+      (
+        way["building"](around:${radius},${lat},${lng});
+      );
+      out body;
+      >;
+      out skel qt;
+    `;
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body: 'data=' + encodeURIComponent(query)
+    });
+    if (!res.ok) throw new Error('Ошибка Overpass API');
+    const data = await res.json();
+
+    const nodes = {};
+    for (const el of data.elements) {
+      if (el.type === 'node') {
+        nodes[el.id] = [el.lat, el.lon];
+      }
+    }
+
+    const buildings = [];
+    for (const el of data.elements) {
+      if (el.type === 'way' && el.tags && el.tags.building) {
+        const coords = el.nodes
+          .map((id) => nodes[id])
+          .filter(Boolean);
+        if (coords.length >= 3) {
+          buildings.push(coords);
+        }
+      }
+    }
+
+    if (buildings.length === 0) {
+      throw new Error('Контур здания не найден');
+    }
+
+    let best = buildings[0];
+    let bestArea = 0;
+    for (const b of buildings) {
+      const local = b.map(toLocal);
+      const a = polygonArea(local);
+      if (a > bestArea) {
+        bestArea = a;
+        best = b;
+      }
+    }
+    return best;
+  }
+
+  async function handleSearch() {
+    const address = addressInput.value.trim();
+    if (!address) {
+      showToast('Введите адрес', '#ef5350');
+      return;
+    }
+
+    searchBtn.disabled = true;
+    try {
+      const geo = await searchBuilding(address);
+      center = [geo.lat, geo.lng];
+      currentAddress = geo.displayName;
+      setBuildingName(geo.displayName.split(',')[0]);
+
+      const outlineCoords = await fetchBuildingOutline(geo.lat, geo.lng);
+      outline = outlineCoords;
+      rebuild();
+      fitToOutline();
+      showToast('Здание найдено: ' + outline.length + ' точек контура', '#66bb6a');
+    } catch (e) {
+      showToast(e.message, '#ef5350');
+      setStatus('Ошибка: ' + e.message);
+    } finally {
+      searchBtn.disabled = false;
+    }
+  }
+
+  searchBtn.onclick = handleSearch;
+  addressInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleSearch();
+  });
 
   const HexGridLayer = L.Layer.extend({
     initialize: function (items) {
@@ -385,7 +506,7 @@
         setStatus('Не удалось разместить гексы. Попробуйте уменьшить размер.');
       }
     } else {
-      setStatus('Нажмите «Разметить корпус» и обведите здание на карте.');
+      setStatus('Введите адрес здания или нажмите «Разметить корпус»');
     }
   }
 

@@ -13,7 +13,12 @@
   <div class="hud" id="hud">
     <div class="hud-header">
       <h1>Битва классов</h1>
-      <div class="hud-sub">Тихоокеанская, 132А · корпус 1</div>
+      <div class="hud-sub" id="buildingName">Адрес не задан</div>
+    </div>
+
+    <div class="search-block">
+      <input type="text" id="addressInput" placeholder="Введите адрес здания" autocomplete="off" />
+      <button id="searchBtn" class="search-btn">Найти</button>
     </div>
 
     <div class="stats">
@@ -27,7 +32,7 @@
       </div>
     </div>
 
-    <div class="status" id="statusLine">Нажмите «Разметить корпус»</div>
+    <div class="status" id="statusLine">Введите адрес или нажмите «Разметить корпус»</div>
 
     <div class="controls">
       <button id="editBtn">Разметить корпус</button>

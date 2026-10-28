@@ -89,6 +89,60 @@ html, body {
   letter-spacing: 0;
 }
 
+.search-block {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.search-block input {
+  flex: 1;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 8px 10px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+
+.search-block input:focus {
+  border-color: var(--accent);
+}
+
+.search-block input::placeholder {
+  color: var(--text-subtle);
+}
+
+.search-btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 12px;
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+  white-space: nowrap;
+}
+
+.search-btn:hover {
+  opacity: 0.85;
+}
+
+.search-btn:active {
+  opacity: 0.7;
+}
+
+.search-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
