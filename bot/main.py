@@ -41,3 +41,24 @@ async def bot_started(event):
 @dp.message_created(Command("start"))
 async def cmd_start(event: MessageCreated):
     await event.message.answer(WELCOME_TEXT, keyboard=get_start_keyboard())
+
+@dp.message_callback()
+async def on_menu_click(event):
+    payload = event.callback.payload
+    await event.answer()
+    
+    if payload == "menu":
+        builder = InlineKeyboardBuilder()
+        builder.callback("👤 Профиль", "profile")
+        builder.callback("⚙️ Настройки", "settings")
+        builder.callback("❓ Помощь", "help")
+        builder.adjust(1)
+        await event.message.answer("📋 Главное меню:", keyboard=builder)
+    elif payload == "rules":
+        await event.message.answer("📜 Правила Битвы классов:\n1. Сражайся честно.\n2. Зарабатывай очки.\n3. Побеждай!")
+    elif payload == "profile":
+        await event.message.answer("👤 Профиль:\nИмя: Иван\nКласс: 10-А\nОчки: 150")
+    elif payload == "settings":
+        await event.message.answer("⚙️ Настройки:\nУведомления: включены")
+    elif payload == "help":
+        await event.message.answer("❓ Помощь:\n/menu — открыть меню\n/start — перезапуск")
