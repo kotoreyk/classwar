@@ -39,11 +39,6 @@
     base: 'https://your-backend.ru/api',
     
     async getMap(buildingId) {
-      // TODO: заменить на реальный запрос к бэку
-      // const res = await fetch(`${this.base}/map?building_id=${buildingId}`);
-      // return await res.json();
-      
-      // Mock: возвращаем текущие локальные данные
       return {
         building: {
           id: buildingId,
@@ -56,15 +51,6 @@
     },
 
     async hexAction(hexId, action) {
-      // TODO: заменить на реальный запрос к бэку
-      // const res = await fetch(`${this.base}/hex/${hexId}/action`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ action, user_id: userId })
-      // });
-      // return await res.json();
-      
-      // Mock: случайный результат
       const types = ['info', 'battle_start', 'task', 'forbidden'];
       const type = types[Math.floor(Math.random() * types.length)];
       
@@ -80,14 +66,6 @@
     },
 
     async generateMap(buildingId, outline, hexes, radius) {
-      // TODO: заменить на реальный запрос к бэку
-      // const res = await fetch(`${this.base}/map/generate`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ building_id, outline, hexes, hex_radius: radius })
-      // });
-      // return await res.json();
-      
       console.log('Mock: отправка данных на бэк', { buildingId, outline, hexes, radius });
       return { success: true };
     }
@@ -254,29 +232,6 @@
     return arr;
   }
 
-  function assignOwners(hexList) {
-    const shuffled = shuffleArray([...hexList]);
-    const allGroups = [...GROUPS_CONFIG];
-    let idx = 0;
-
-    allGroups.forEach(group => {
-      for (let i = 0; i < MIN_HEXES_PER_GROUP && idx < shuffled.length; i++) {
-        shuffled[idx].owner = group.id;
-        shuffled[idx].ownerName = group.name;
-        shuffled[idx].color = group.color;
-        idx++;
-      }
-    });
-
-    while (idx < shuffled.length) {
-      const group = allGroups[Math.floor(Math.random() * allGroups.length)];
-      shuffled[idx].owner = group.id;
-      shuffled[idx].ownerName = group.name;
-      shuffled[idx].color = group.color;
-      idx++;
-    }
-  }
-
   function classifyHexes(hexList, outlineLocal, centroid) {
     if (hexList.length === 0) return;
     let maxDist = 0;
@@ -287,12 +242,65 @@
     for (const hex of hexList) {
       const distToOutline = distanceToOutline(hex.localX, hex.localY, outlineLocal);
       const distToCentroid = Math.hypot(hex.localX - centroid[0], hex.localY - centroid[1]);
-      hex.isHome = distToOutline < hex.size * HOME_EDGE_THRESHOLD;
+      hex.isHomeCandidate = distToOutline < hex.size * HOME_EDGE_THRESHOLD;
       const normalizedDist = maxDist > 0 ? distToCentroid / maxDist : 0;
       let value = 1 - normalizedDist;
-      if (hex.isHome) value = Math.min(value, 0.2);
+      if (hex.isHomeCandidate) value = Math.min(value, 0.2);
       hex.value = value;
-      hex.dailyPoints = hex.isHome ? HOME_POINTS : Math.max(1, Math.round(BASE_DAILY_POINTS * value));
+      hex.dailyPoints = hex.isHomeCandidate ? HOME_POINTS : Math.max(1, Math.round(BASE_DAILY_POINTS * value));
+    }
+  }
+
+  function assignOwners(hexList) {
+    const shuffled = shuffleArray([...hexList]);
+    const allGroups = [...GROUPS_CONFIG];
+    
+    // Находим все краевые гексы
+    const homeCandidates = shuffled.filter(h => h.isHomeCandidate);
+    const nonHomeHexes = shuffled.filter(h => !h.isHomeCandidate);
+    
+    // Назначаем по одному домашнему гексу каждому классу
+    let homeIdx = 0;
+    allGroups.forEach(group => {
+      if (homeIdx < homeCandidates.length) {
+        homeCandidates[homeIdx].owner = group.id;
+        homeCandidates[homeIdx].ownerName = group.name;
+        homeCandidates[homeIdx].color = group.color;
+        homeCandidates[homeIdx].isHome = true;
+        homeIdx++;
+      }
+    });
+    
+    // Остальные краевые гексы не домашние
+    while (homeIdx < homeCandidates.length) {
+      homeCandidates[homeIdx].isHome = false;
+      homeIdx++;
+    }
+    
+    // Распределяем остальные гексы (включая не-домашние краевые)
+    const remainingHexes = [...nonHomeHexes, ...homeCandidates.filter(h => !h.isHome)];
+    const shuffledRemaining = shuffleArray(remainingHexes);
+    
+    let idx = 0;
+    allGroups.forEach(group => {
+      // Считаем сколько уже есть у группы
+      const currentCount = hexList.filter(h => h.owner === group.id).length;
+      const needed = Math.max(0, MIN_HEXES_PER_GROUP - currentCount);
+      
+      for (let i = 0; i < needed && idx < shuffledRemaining.length; i++) {
+        shuffledRemaining[idx].owner = group.id;
+        shuffledRemaining[idx].ownerName = group.name;
+        shuffledRemaining[idx].color = group.color;
+        idx++;
+      }
+    });
+    
+    while (idx < shuffledRemaining.length) {
+      const group = allGroups[Math.floor(Math.random() * allGroups.length)];
+      shuffledRemaining[idx].owner = group.id;
+      shuffledRemaining[idx].ownerName = group.name;
+      shuffledRemaining[idx].color = group.color;
+      idx++;
     }
   }
 
@@ -324,7 +332,9 @@
           latlng: toLatLng(x, y),
           owner: null,
           ownerName: null,
-          color: null
+          color: null,
+          isHome: false,
+          isHomeCandidate: false
         });
       }
     }
@@ -345,7 +355,7 @@
   }
 
   async function handleHexClick(hex) {
-    const homeMark = hex.isHome ? ' ' : '';
+    const homeMark = hex.isHome ? ' 🏠' : '';
     showToast('Сектор #' + hex.id + ' · ' + hex.ownerName + homeMark + ' · +' + hex.dailyPoints + '/день', hex.color);
 
     try {
