@@ -33,6 +33,65 @@
   let editing = false;
   let draft = [];
   let currentAddress = '';
+  let buildingId = 1;
+
+  const API = {
+    base: 'https://your-backend.ru/api',
+    
+    async getMap(buildingId) {
+      // TODO: заменить на реальный запрос к бэку
+      // const res = await fetch(`${this.base}/map?building_id=${buildingId}`);
+      // return await res.json();
+      
+      // Mock: возвращаем текущие локальные данные
+      return {
+        building: {
+          id: buildingId,
+          name: currentAddress || 'Локальная карта',
+          outline: outline
+        },
+        hexes: hexes,
+        hex_radius: hexRadius
+      };
+    },
+
+    async hexAction(hexId, action) {
+      // TODO: заменить на реальный запрос к бэку
+      // const res = await fetch(`${this.base}/hex/${hexId}/action`, {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ action, user_id: userId })
+      // });
+      // return await res.json();
+      
+      // Mock: случайный результат
+      const types = ['info', 'battle_start', 'task', 'forbidden'];
+      const type = types[Math.floor(Math.random() * types.length)];
+      
+      if (type === 'battle_start') {
+        return { type, enemy_hp: Math.floor(Math.random() * 50) + 20, updated: true };
+      } else if (type === 'task') {
+        return { type, task: { text: 'Решить 5 задач по математике' }, updated: false };
+      } else if (type === 'forbidden') {
+        return { type, reason: 'Нужен токен старосты', updated: false };
+      } else {
+        return { type, text: 'Информация о секторе', updated: false };
+      }
+    },
+
+    async generateMap(buildingId, outline, hexes, radius) {
+      // TODO: заменить на реальный запрос к бэку
+      // const res = await fetch(`${this.base}/map/generate`, {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ building_id, outline, hexes, hex_radius: radius })
+      // });
+      // return await res.json();
+      
+      console.log('Mock: отправка данных на бэк', { buildingId, outline, hexes, radius });
+      return { success: true };
+    }
+  };
 
   const map = L.map('map', {
     center: DEFAULT_CENTER,
@@ -283,6 +342,52 @@
     classifyHexes(field, polyLocal, centroid);
     assignOwners(field);
     return { hexes: field, radius: r, area: area };
+  }
+
+  async function handleHexClick(hex) {
+    const homeMark = hex.isHome ? ' ' : '';
+    showToast('Сектор #' + hex.id + ' · ' + hex.ownerName + homeMark + ' · +' + hex.dailyPoints + '/день', hex.color);
+
+    try {
+      const result = await API.hexAction(hex.id, 'inspect');
+
+      if (result.type === 'battle_start') {
+        showToast('⚔️ Бой за сектор #' + hex.id + '! HP: ' + result.enemy_hp, '#ef5350');
+      } else if (result.type === 'task') {
+        showToast('📋 Задание: ' + result.task.text, '#42a5f5');
+      } else if (result.type === 'forbidden') {
+        showToast('🚫 ' + result.reason, '#ef5350');
+      }
+
+      if (result.updated) {
+        await loadMapFromBackend();
+      }
+    } catch (e) {
+      showToast('Ошибка связи', '#ef5350');
+    }
+  }
+
+  async function loadMapFromBackend() {
+    try {
+      setStatus('Загрузка карты...');
+      const data = await API.getMap(buildingId);
+      
+      if (data.building.outline && data.building.outline.length > 0) {
+        outline = data.building.outline;
+        setBuildingName(data.building.name);
+      }
+      
+      if (data.hexes && data.hexes.length > 0) {
+        hexes = data.hexes;
+        hexRadius = data.hex_radius;
+      }
+      
+      rebuild();
+      setStatus('Карта загружена');
+    } catch (e) {
+      setStatus('Ошибка: ' + e.message);
+      showToast('Не удалось загрузить карту', '#ef5350');
+    }
   }
 
   async function searchBuilding(address) {
@@ -578,9 +683,7 @@
       const c = this._localCoords(e);
       const hex = this._hitTest(c.x, c.y);
       if (!hex) return;
-      const homeMark = hex.isHome ? ' ' : '';
-      const msg = 'Сектор #' + hex.id + ' · ' + hex.ownerName + homeMark + ' · +' + hex.dailyPoints + '/день';
-      showToast(msg, hex.color);
+      handleHexClick(hex);
     },
     _onMove: function (e) {
       if (editing) return;
@@ -607,20 +710,20 @@
       gridLayer = null;
     }
     outlineLayer.setLatLngs(outline);
-    const result = generateHexes();
-    hexes = result.hexes;
-    hexRadius = result.radius;
+    
+    if (hexes.length === 0) {
+      const result = generateHexes();
+      hexes = result.hexes;
+      hexRadius = result.radius;
+    }
+    
     countEl.textContent = hexes.length;
     sizeEl.textContent = hexRadius ? hexRadius.toFixed(1) : '—';
     if (hexes.length) {
       gridLayer = new HexGridLayer(hexes).addTo(map);
       setStatus('Гексы построены внутри контура здания.');
     } else if (outline.length >= 3) {
-      if (result.area < 5) {
-        setStatus('Площадь здания менее 5 м² — слишком мало для сетки.');
-      } else {
-        setStatus('Не удалось разместить гексы. Попробуйте уменьшить размер.');
-      }
+      setStatus('Введите адрес здания или нажмите «Разметить корпус»');
     } else {
       setStatus('Введите адрес здания или нажмите «Разметить корпус»');
     }
@@ -722,5 +825,5 @@
     }
   };
 
-  rebuild();
+  loadMapFromBackend();
 })();
