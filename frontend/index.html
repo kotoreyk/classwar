@@ -36,6 +36,7 @@
 
     <div class="controls">
       <button id="editBtn">Разметить корпус</button>
+      <button id="sendBtn" class="ghost">Отправить на бэк</button>
     </div>
 
     <div class="legend" id="legend"></div>
@@ -60,14 +61,22 @@
             <span class="info-value" id="attackOwner">—</span>
           </div>
           <div class="info-row">
-            <span class="info-label">Текущие очки:</span>
+            <span class="info-label">Расстояние:</span>
+            <span class="info-value" id="attackDistance">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Штраф:</span>
+            <span class="info-value" id="attackMultiplier">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Нужно очков:</span>
             <span class="info-value" id="attackCurrentPoints">—</span>
           </div>
         </div>
         <div class="attack-input-group">
           <label for="attackPointsInput">Ваши очки (ставки за оценки):</label>
           <input type="number" id="attackPointsInput" min="1" placeholder="Введите количество" />
-          <div class="attack-hint">Чем больше очков — тем выше шанс захвата</div>
+          <div class="attack-hint">Чем дальше от вашей территории — тем больше очков нужно</div>
         </div>
       </div>
       <div class="modal-footer">
@@ -78,6 +87,7 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="generator.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
