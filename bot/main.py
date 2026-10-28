@@ -62,3 +62,22 @@ async def on_menu_click(event):
         await event.message.answer("⚙️ Настройки:\nУведомления: включены")
     elif payload == "help":
         await event.message.answer("❓ Помощь:\n/menu — открыть меню\n/start — перезапуск")
+
+async def main():
+    try:
+        me = await bot.get_me()
+        logging.info(f"✅ Старт бота @{me.username}")
+        await dp.start_polling(bot)
+    except asyncio.CancelledError:
+        logging.info("🛑 Бот остановлен.")
+    except Exception as e:
+        logging.error(f"❌ Ошибка: {e}")
+    finally:
+        if hasattr(bot, 'session') and bot.session is not None:
+            await bot.session.close()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
