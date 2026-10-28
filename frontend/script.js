@@ -51,17 +51,30 @@
     },
 
     async hexAction(hexId, action) {
-      const types = ['info', 'battle_start', 'task', 'forbidden'];
+      const hex = hexes.find(h => h.id === hexId);
+      if (!hex) return { type: 'error', reason: 'Гекс не найден' };
+      
+      if (hex.isHome) {
+        return { type: 'forbidden', reason: 'Нельзя атаковать домашнюю территорию', updated: false };
+      }
+      
+      const types = ['info', 'battle_start', 'battle_start', 'battle_start'];
       const type = types[Math.floor(Math.random() * types.length)];
       
       if (type === 'battle_start') {
-        return { type, enemy_hp: Math.floor(Math.random() * 50) + 20, updated: true };
-      } else if (type === 'task') {
-        return { type, task: { text: 'Решить 5 задач по математике' }, updated: false };
-      } else if (type === 'forbidden') {
-        return { type, reason: 'Нужен токен старосты', updated: false };
+        const currentPoints = Math.floor(Math.random() * 100) + 50;
+        return { 
+          type, 
+          current_points: currentPoints,
+          hex_id: hexId,
+          updated: false 
+        };
       } else {
-        return { type, text: 'Информация о секторе', updated: false };
+        return { 
+          type, 
+          text: 'Сектор #' + hexId + ' · Владелец: ' + hex.ownerName + ' · Очков: ' + hex.dailyPoints + '/день',
+          updated: false 
+        };
       }
     },
 
@@ -255,11 +268,9 @@
     const shuffled = shuffleArray([...hexList]);
     const allGroups = [...GROUPS_CONFIG];
     
-    // Находим все краевые гексы
     const homeCandidates = shuffled.filter(h => h.isHomeCandidate);
     const nonHomeHexes = shuffled.filter(h => !h.isHomeCandidate);
     
-    // Назначаем по одному домашнему гексу каждому классу
     let homeIdx = 0;
     allGroups.forEach(group => {
       if (homeIdx < homeCandidates.length) {
@@ -271,19 +282,16 @@
       }
     });
     
-    // Остальные краевые гексы не домашние
     while (homeIdx < homeCandidates.length) {
       homeCandidates[homeIdx].isHome = false;
       homeIdx++;
     }
     
-    // Распределяем остальные гексы (включая не-домашние краевые)
     const remainingHexes = [...nonHomeHexes, ...homeCandidates.filter(h => !h.isHome)];
     const shuffledRemaining = shuffleArray(remainingHexes);
     
     let idx = 0;
     allGroups.forEach(group => {
-      // Считаем сколько уже есть у группы
       const currentCount = hexList.filter(h => h.owner === group.id).length;
       const needed = Math.max(0, MIN_HEXES_PER_GROUP - currentCount);
       
@@ -356,17 +364,17 @@
 
   async function handleHexClick(hex) {
     const homeMark = hex.isHome ? ' 🏠' : '';
-    showToast('Сектор #' + hex.id + ' · ' + hex.ownerName + homeMark + ' · +' + hex.dailyPoints + '/день', hex.color);
+    showToast('Сектор #' + hex.id + ' · ' + hex.ownerName + homeMark + ' · +' + hex.dailyPoints + ' очков/день', hex.color);
 
     try {
       const result = await API.hexAction(hex.id, 'inspect');
 
       if (result.type === 'battle_start') {
-        showToast('⚔️ Бой за сектор #' + hex.id + '! HP: ' + result.enemy_hp, '#ef5350');
-      } else if (result.type === 'task') {
-        showToast('📋 Задание: ' + result.task.text, '#42a5f5');
+        showToast('️ Бой за сектор #' + hex.id + '! Нужно очков: ' + result.current_points, '#ef5350');
       } else if (result.type === 'forbidden') {
         showToast('🚫 ' + result.reason, '#ef5350');
+      } else if (result.type === 'info') {
+        showToast('ℹ️ ' + result.text, '#42a5f5');
       }
 
       if (result.updated) {
@@ -630,10 +638,20 @@
         ctx.fillText(hex.ownerName, x, y + 7);
 
         if (r > 22) {
-          ctx.font = '700 ' + Math.max(8, Math.min(10, r / 5)) + 'px -apple-system, "Inter", sans-serif';
+          const pointsText = '+' + hex.dailyPoints;
+          const fontSize = Math.max(8, Math.min(10, r / 5));
+          ctx.font = '700 ' + fontSize + 'px -apple-system, "Inter", sans-serif';
+          
+          const textWidth = ctx.measureText(pointsText).width;
+          const textX = x;
+          const textY = y + r * 0.55;
+          
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.fillRect(textX - textWidth / 2 - 2, textY - fontSize / 2 - 1, textWidth + 4, fontSize + 2);
+          
           ctx.fillStyle = hex.value > GLOW_VALUE_THRESHOLD ? '#f9a825' : '#1a1a1a';
-          ctx.globalAlpha = hovered ? 0.9 : 0.7;
-          ctx.fillText('+' + hex.dailyPoints, x, y + r * 0.55);
+          ctx.globalAlpha = 1;
+          ctx.fillText(pointsText, textX, textY);
         }
       }
 
