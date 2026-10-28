@@ -218,9 +218,9 @@ html, body {
 }
 
 .legend {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
@@ -228,17 +228,27 @@ html, body {
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 13px;
+  gap: 6px;
+  font-size: 11px;
   color: var(--text);
 }
 
 .legend-swatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
   background: currentColor;
   flex-shrink: 0;
+}
+
+.legend-note {
+  font-size: 11px;
+  color: var(--text-subtle);
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  margin-top: 4px;
+  line-height: 1.4;
+  grid-column: 1 / -1;
 }
 
 .toast {
@@ -298,36 +308,173 @@ html, body {
 .hud::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 .hud::-webkit-scrollbar-track { background: transparent; }
 
-.legend {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 10px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  backdrop-filter: blur(4px);
 }
 
-.legend-item {
+.modal-overlay.show {
+  display: flex;
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: 90%;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s ease;
+}
+
+.modal-close:hover {
+  background: var(--surface-2);
   color: var(--text);
 }
 
-.legend-swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  background: currentColor;
-  flex-shrink: 0;
+.modal-body {
+  padding: 20px;
 }
 
-.legend-note {
+.attack-info {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.info-row:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+.info-label {
+  color: var(--text-muted);
+}
+
+.info-value {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.attack-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attack-input-group label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.attack-input-group input {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+
+.attack-input-group input:focus {
+  border-color: var(--accent);
+}
+
+.attack-hint {
   font-size: 11px;
   color: var(--text-subtle);
-  padding-top: 8px;
-  border-top: 1px dashed var(--border);
   margin-top: 4px;
-  line-height: 1.4;
-  grid-column: 1 / -1;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.modal-footer button {
+  flex: 1;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+}
+
+.btn-secondary:hover {
+  background: var(--surface-2);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid var(--accent);
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

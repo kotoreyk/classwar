@@ -37,7 +37,7 @@
 
   const API = {
     base: 'https://your-backend.ru/api',
-    
+
     async getMap(buildingId) {
       return {
         building: {
@@ -50,32 +50,27 @@
       };
     },
 
-    async hexAction(hexId, action) {
+    async hexAction(hexId, action, points = 0) {
       const hex = hexes.find(h => h.id === hexId);
       if (!hex) return { type: 'error', reason: 'Гекс не найден' };
-      
+
       if (hex.isHome) {
         return { type: 'forbidden', reason: 'Нельзя атаковать домашнюю территорию', updated: false };
       }
-      
-      const types = ['info', 'battle_start', 'battle_start', 'battle_start'];
-      const type = types[Math.floor(Math.random() * types.length)];
-      
-      if (type === 'battle_start') {
+
+      if (action === 'attack') {
         const currentPoints = Math.floor(Math.random() * 100) + 50;
-        return { 
-          type, 
-          current_points: currentPoints,
-          hex_id: hexId,
-          updated: false 
-        };
-      } else {
-        return { 
-          type, 
-          text: 'Сектор #' + hexId + ' · Владелец: ' + hex.ownerName + ' · Очков: ' + hex.dailyPoints + '/день',
-          updated: false 
-        };
+        const success = points > currentPoints;
+
+        if (success) {
+          return { type: 'success', success: true, hex_id: hexId, updated: true };
+        } else {
+          return { type: 'failed', success: false, reason: 'Недостаточно очков. Нужно: ' + currentPoints, updated: false };
+        }
       }
+
+      const currentPoints = Math.floor(Math.random() * 100) + 50;
+      return { type: 'battle_start', current_points: currentPoints, hex_id: hexId, updated: false };
     },
 
     async generateMap(buildingId, outline, hexes, radius) {
@@ -116,7 +111,18 @@
   const legendEl = document.getElementById('legend');
   const addressInput = document.getElementById('addressInput');
   const searchBtn = document.getElementById('searchBtn');
+
+  const attackModal = document.getElementById('attackModal');
+  const closeModalBtn = document.getElementById('closeModal');
+  const cancelAttackBtn = document.getElementById('cancelAttack');
+  const confirmAttackBtn = document.getElementById('confirmAttack');
+  const attackHexIdEl = document.getElementById('attackHexId');
+  const attackOwnerEl = document.getElementById('attackOwner');
+  const attackCurrentPointsEl = document.getElementById('attackCurrentPoints');
+  const attackPointsInput = document.getElementById('attackPointsInput');
+
   let toastTimer = null;
+  let selectedHex = null;
 
   function setStatus(text) { statusEl.textContent = text; }
 
@@ -267,10 +273,10 @@
   function assignOwners(hexList) {
     const shuffled = shuffleArray([...hexList]);
     const allGroups = [...GROUPS_CONFIG];
-    
+
     const homeCandidates = shuffled.filter(h => h.isHomeCandidate);
     const nonHomeHexes = shuffled.filter(h => !h.isHomeCandidate);
-    
+
     let homeIdx = 0;
     allGroups.forEach(group => {
       if (homeIdx < homeCandidates.length) {
@@ -281,20 +287,20 @@
         homeIdx++;
       }
     });
-    
+
     while (homeIdx < homeCandidates.length) {
       homeCandidates[homeIdx].isHome = false;
       homeIdx++;
     }
-    
+
     const remainingHexes = [...nonHomeHexes, ...homeCandidates.filter(h => !h.isHome)];
     const shuffledRemaining = shuffleArray(remainingHexes);
-    
+
     let idx = 0;
     allGroups.forEach(group => {
       const currentCount = hexList.filter(h => h.owner === group.id).length;
       const needed = Math.max(0, MIN_HEXES_PER_GROUP - currentCount);
-      
+
       for (let i = 0; i < needed && idx < shuffledRemaining.length; i++) {
         shuffledRemaining[idx].owner = group.id;
         shuffledRemaining[idx].ownerName = group.name;
@@ -302,7 +308,7 @@
         idx++;
       }
     });
-    
+
     while (idx < shuffledRemaining.length) {
       const group = allGroups[Math.floor(Math.random() * allGroups.length)];
       shuffledRemaining[idx].owner = group.id;
@@ -363,14 +369,23 @@
   }
 
   async function handleHexClick(hex) {
-    const homeMark = hex.isHome ? ' 🏠' : '';
-    showToast('Сектор #' + hex.id + ' · ' + hex.ownerName + homeMark + ' · +' + hex.dailyPoints + ' очков/день', hex.color);
+    if (hex.isHome) {
+      showToast('🏠 Нельзя атаковать домашнюю территорию', '#ef5350');
+      return;
+    }
+
+    selectedHex = hex;
+    showToast('Сектор #' + hex.id + ' · ' + hex.ownerName + ' · +' + hex.dailyPoints + ' очков/день', hex.color);
 
     try {
       const result = await API.hexAction(hex.id, 'inspect');
 
       if (result.type === 'battle_start') {
-        showToast('️ Бой за сектор #' + hex.id + '! Нужно очков: ' + result.current_points, '#ef5350');
+        attackHexIdEl.textContent = '#' + hex.id;
+        attackOwnerEl.textContent = hex.ownerName;
+        attackCurrentPointsEl.textContent = result.current_points;
+        attackPointsInput.value = '';
+        attackModal.classList.add('show');
       } else if (result.type === 'forbidden') {
         showToast('🚫 ' + result.reason, '#ef5350');
       } else if (result.type === 'info') {
@@ -389,17 +404,17 @@
     try {
       setStatus('Загрузка карты...');
       const data = await API.getMap(buildingId);
-      
+
       if (data.building.outline && data.building.outline.length > 0) {
         outline = data.building.outline;
         setBuildingName(data.building.name);
       }
-      
+
       if (data.hexes && data.hexes.length > 0) {
         hexes = data.hexes;
         hexRadius = data.hex_radius;
       }
-      
+
       rebuild();
       setStatus('Карта загружена');
     } catch (e) {
@@ -521,6 +536,50 @@
     if (e.key === 'Enter') handleSearch();
   });
 
+  function closeAttackModal() {
+    attackModal.classList.remove('show');
+    selectedHex = null;
+  }
+
+  closeModalBtn.onclick = closeAttackModal;
+  cancelAttackBtn.onclick = closeAttackModal;
+
+  attackModal.addEventListener('click', (e) => {
+    if (e.target === attackModal) closeAttackModal();
+  });
+
+  confirmAttackBtn.onclick = async function() {
+    if (!selectedHex) return;
+
+    const points = parseInt(attackPointsInput.value);
+    if (!points || points < 1) {
+      showToast('Введите количество очков', '#ef5350');
+      return;
+    }
+
+    confirmAttackBtn.disabled = true;
+    confirmAttackBtn.textContent = 'Атака...';
+
+    try {
+      const result = await API.hexAction(selectedHex.id, 'attack', points);
+
+      if (result.success) {
+        showToast('✅ Сектор #' + selectedHex.id + ' захвачен!', '#66bb6a');
+        closeAttackModal();
+        await loadMapFromBackend();
+      } else if (result.type === 'failed') {
+        showToast('❌ Атака не удалась. ' + result.reason, '#ef5350');
+      } else {
+        showToast('Ошибка: ' + (result.reason || 'Неизвестно'), '#ef5350');
+      }
+    } catch (e) {
+      showToast('Ошибка связи', '#ef5350');
+    } finally {
+      confirmAttackBtn.disabled = false;
+      confirmAttackBtn.textContent = 'Атаковать';
+    }
+  };
+
   const HexGridLayer = L.Layer.extend({
     initialize: function (items) {
       this.items = items;
@@ -641,14 +700,14 @@
           const pointsText = '+' + hex.dailyPoints;
           const fontSize = Math.max(8, Math.min(10, r / 5));
           ctx.font = '700 ' + fontSize + 'px -apple-system, "Inter", sans-serif';
-          
+
           const textWidth = ctx.measureText(pointsText).width;
           const textX = x;
           const textY = y + r * 0.55;
-          
+
           ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
           ctx.fillRect(textX - textWidth / 2 - 2, textY - fontSize / 2 - 1, textWidth + 4, fontSize + 2);
-          
+
           ctx.fillStyle = hex.value > GLOW_VALUE_THRESHOLD ? '#f9a825' : '#1a1a1a';
           ctx.globalAlpha = 1;
           ctx.fillText(pointsText, textX, textY);
@@ -738,13 +797,13 @@
       gridLayer = null;
     }
     outlineLayer.setLatLngs(outline);
-    
+
     if (hexes.length === 0) {
       const result = generateHexes();
       hexes = result.hexes;
       hexRadius = result.radius;
     }
-    
+
     countEl.textContent = hexes.length;
     sizeEl.textContent = hexRadius ? hexRadius.toFixed(1) : '—';
     if (hexes.length) {
