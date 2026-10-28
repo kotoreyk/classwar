@@ -23,3 +23,21 @@ WELCOME_TEXT = (
     "что твой класс — лучший. 🏆\n\n"
     "Нажми на кнопку ниже, чтобы начать!"
 )
+
+def get_start_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.callback("📋 Открыть меню", "menu")
+    builder.callback("❓ Правила игры", "rules")
+    return builder
+
+@dp.bot_started()
+async def bot_started(event):
+    await event.bot.send_message(
+        chat_id=event.chat_id,
+        text=WELCOME_TEXT,
+        keyboard=get_start_keyboard()
+    )
+
+@dp.message_created(Command("start"))
+async def cmd_start(event: MessageCreated):
+    await event.message.answer(WELCOME_TEXT, keyboard=get_start_keyboard())
