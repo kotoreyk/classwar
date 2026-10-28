@@ -5,6 +5,10 @@
   const MIN_HEX_RADIUS = 0.8;
   const MAX_HEX_RADIUS = 20;
   const MIN_HEXES_PER_GROUP = 3;
+  const BASE_DAILY_POINTS = 10;
+  const HOME_POINTS = 1;
+  const HOME_EDGE_THRESHOLD = 1.5;
+  const GLOW_VALUE_THRESHOLD = 0.7;
 
   const GROUPS_CONFIG = [
     { id: '9А', name: '9 А', color: '#ef5350' },
@@ -90,6 +94,14 @@
     neutralRow.className = 'legend-item';
     neutralRow.innerHTML = '<div class="legend-swatch" style="color:' + NEUTRAL.color + '"></div><span>' + NEUTRAL.name + '</span>';
     legendEl.appendChild(neutralRow);
+    const homeRow = document.createElement('div');
+    homeRow.className = 'legend-item';
+    homeRow.innerHTML = '<div class="legend-swatch" style="border: 1.5px dashed #d4a017; background: transparent;"></div><span>Домашняя</span>';
+    legendEl.appendChild(homeRow);
+    const note = document.createElement('div');
+    note.className = 'legend-note';
+    note.textContent = 'Число на гексе — очки в день. Золотое свечение — ценные сектора.';
+    legendEl.appendChild(note);
   }
 
   buildLegend();
@@ -148,6 +160,27 @@
     return [(bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2];
   }
 
+  function pointToSegmentDistance(px, py, ax, ay, bx, by) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) return Math.hypot(px - ax, py - ay);
+    let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+
+  function distanceToOutline(x, y, outlineLocal) {
+    let minDist = Infinity;
+    for (let i = 0; i < outlineLocal.length; i++) {
+      const a = outlineLocal[i];
+      const b = outlineLocal[(i + 1) % outlineLocal.length];
+      const d = pointToSegmentDistance(x, y, a[0], a[1], b[0], b[1]);
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  }
+
   function computeAdaptiveRadius(area) {
     const target = Math.round(Math.max(25, Math.min(150, Math.sqrt(area) / 2)));
     const r = Math.sqrt(area / (target * HEX_AREA_COEFF));
@@ -185,6 +218,25 @@
     }
   }
 
+  function classifyHexes(hexList, outlineLocal, centroid) {
+    if (hexList.length === 0) return;
+    let maxDist = 0;
+    for (const hex of hexList) {
+      const d = Math.hypot(hex.localX - centroid[0], hex.localY - centroid[1]);
+      if (d > maxDist) maxDist = d;
+    }
+    for (const hex of hexList) {
+      const distToOutline = distanceToOutline(hex.localX, hex.localY, outlineLocal);
+      const distToCentroid = Math.hypot(hex.localX - centroid[0], hex.localY - centroid[1]);
+      hex.isHome = distToOutline < hex.size * HOME_EDGE_THRESHOLD;
+      const normalizedDist = maxDist > 0 ? distToCentroid / maxDist : 0;
+      let value = 1 - normalizedDist;
+      if (hex.isHome) value = Math.min(value, 0.2);
+      hex.value = value;
+      hex.dailyPoints = hex.isHome ? HOME_POINTS : Math.max(1, Math.round(BASE_DAILY_POINTS * value));
+    }
+  }
+
   function buildHexField(polyLocal, size) {
     const sqrt3 = Math.sqrt(3);
     const bounds = polygonBounds(polyLocal);
@@ -208,6 +260,8 @@
           q: q,
           s: s,
           size: size,
+          localX: x,
+          localY: y,
           latlng: toLatLng(x, y),
           owner: null,
           ownerName: null,
@@ -225,6 +279,8 @@
     if (area < 1) return { hexes: [], radius: 0, area: area };
     const r = computeAdaptiveRadius(area);
     const field = buildHexField(polyLocal, r);
+    const centroid = polygonCentroid(polyLocal);
+    classifyHexes(field, polyLocal, centroid);
     assignOwners(field);
     return { hexes: field, radius: r, area: area };
   }
@@ -412,6 +468,12 @@
     },
     _drawHex: function (ctx, x, y, r, hex, hovered) {
       ctx.save();
+
+      if (hex.value > GLOW_VALUE_THRESHOLD && r > 15) {
+        ctx.shadowColor = '#ffd54f';
+        ctx.shadowBlur = 8 + (hex.value - GLOW_VALUE_THRESHOLD) * 20;
+      }
+
       ctx.beginPath();
       for (let i = 0; i < 6; i++) {
         const a = Math.PI / 3 * i - Math.PI / 6;
@@ -422,10 +484,23 @@
       ctx.closePath();
       ctx.fillStyle = hex.color + (hovered ? '55' : '2e');
       ctx.fill();
-      ctx.strokeStyle = hex.color;
-      ctx.lineWidth = hovered ? 1.6 : 1;
+
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+
+      if (hex.isHome) {
+        ctx.strokeStyle = '#d4a017';
+        ctx.lineWidth = hovered ? 2 : 1.5;
+        ctx.setLineDash([4, 3]);
+      } else {
+        ctx.strokeStyle = hex.color;
+        ctx.lineWidth = hovered ? 1.6 : 1;
+        ctx.setLineDash([]);
+      }
       ctx.globalAlpha = hovered ? 1 : 0.85;
       ctx.stroke();
+      ctx.setLineDash([]);
+
       ctx.globalAlpha = 1;
       if (r > 16) {
         ctx.fillStyle = '#1a1a1a';
@@ -434,10 +509,50 @@
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('#' + hex.id, x, y - 5);
+
         ctx.font = '500 ' + Math.max(8, Math.min(11, r / 4)) + 'px -apple-system, "Inter", sans-serif';
         ctx.globalAlpha = hovered ? 0.85 : 0.55;
         ctx.fillText(hex.ownerName, x, y + 7);
+
+        if (r > 22) {
+          ctx.font = '700 ' + Math.max(8, Math.min(10, r / 5)) + 'px -apple-system, "Inter", sans-serif';
+          ctx.fillStyle = hex.value > GLOW_VALUE_THRESHOLD ? '#f9a825' : '#1a1a1a';
+          ctx.globalAlpha = hovered ? 0.9 : 0.7;
+          ctx.fillText('+' + hex.dailyPoints, x, y + r * 0.55);
+        }
       }
+
+      if (hex.isHome && r > 18) {
+        this._drawHomeIcon(ctx, x - r * 0.55, y - r * 0.55, Math.max(4, r * 0.18));
+      }
+
+      ctx.restore();
+    },
+    _drawHomeIcon: function (ctx, x, y, size) {
+      ctx.save();
+      ctx.strokeStyle = '#fff';
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 1.2;
+      ctx.lineJoin = 'round';
+
+      ctx.beginPath();
+      ctx.arc(x, y, size * 1.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(x, y - size);
+      ctx.lineTo(x + size, y - size * 0.1);
+      ctx.lineTo(x - size, y - size * 0.1);
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.strokeRect(
+        x - size * 0.7,
+        y - size * 0.1,
+        size * 1.4,
+        size * 0.9
+      );
+
       ctx.restore();
     },
     _hitTest: function (x, y) {
@@ -463,7 +578,8 @@
       const c = this._localCoords(e);
       const hex = this._hitTest(c.x, c.y);
       if (!hex) return;
-      const msg = 'Сектор #' + hex.id + ' · ' + hex.ownerName;
+      const homeMark = hex.isHome ? ' ' : '';
+      const msg = 'Сектор #' + hex.id + ' · ' + hex.ownerName + homeMark + ' · +' + hex.dailyPoints + '/день';
       showToast(msg, hex.color);
     },
     _onMove: function (e) {

@@ -321,3 +321,13 @@ html, body {
   background: currentColor;
   flex-shrink: 0;
 }
+
+.legend-note {
+  font-size: 11px;
+  color: var(--text-subtle);
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  margin-top: 4px;
+  line-height: 1.4;
+  grid-column: 1 / -1;
+}
