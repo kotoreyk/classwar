@@ -131,13 +131,11 @@ html, body {
 }
 
 .controls {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
   margin-bottom: 16px;
 }
 
 .controls button {
+  width: 100%;
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
@@ -163,16 +161,6 @@ html, body {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
-}
-
-.controls button.ghost {
-  grid-column: 1 / -1;
-  color: var(--text-muted);
-  border-color: var(--border);
-}
-
-.controls button.ghost:hover {
-  color: var(--text);
 }
 
 .legend {

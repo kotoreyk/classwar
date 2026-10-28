@@ -485,11 +485,5 @@
     }
   };
 
-  document.getElementById('clearBtn').onclick = function () {
-    outline = [];
-    rebuild();
-    showToast('Контур сброшен', '#1a1a1a');
-  };
-
   rebuild();
 })();
