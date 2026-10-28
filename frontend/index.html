@@ -1,46 +1,45 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Битва Классов</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Битва Классов</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<div id="map"></div>
-<div class="hud">
-<header class="hud-header">
-<h1>Битва классов</h1>
-<span class="hud-sub">Тихоокеанская, 132А · корпус 1</span>
-</header>
-<div class="stats">
-<div class="stat">
-<span class="stat-label">Секторов</span>
-<span class="stat-value" id="hexCount">0</span>
-</div>
-<div class="stat">
-<span class="stat-label">Размер</span>
-<span class="stat-value"><span id="hexSize">—</span> м</span>
-</div>
-</div>
-<div class="status" id="statusLine">Нажмите «Разметить корпус»</div>
-<div class="density-control">
-<div class="density-header">
-<span class="density-label">Плотность гексов</span>
-<span class="density-value" id="densityValue">авто</span>
-</div>
-<input type="range" id="densitySlider" min="0.8" max="20" step="0.1" value="3" />
-<button id="autoBtn" type="button" class="auto-btn active">Авто</button>
-</div>
-<div class="controls">
-<button id="editBtn" type="button">Разметить корпус</button>
-<button id="clearBtn" type="button" class="ghost">Сбросить</button>
-</div>
-<div class="legend" id="legend"></div>
-</div>
-<div class="toast" id="toast"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="script.js"></script>
+  <div id="map"></div>
+
+  <div class="hud" id="hud">
+    <div class="hud-header">
+      <h1>Битва классов</h1>
+      <div class="hud-sub">Тихоокеанская, 132А · корпус 1</div>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-label">Секторов</span>
+        <span class="stat-value" id="hexCount">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Размер</span>
+        <span class="stat-value" id="hexSize">— м</span>
+      </div>
+    </div>
+
+    <div class="status" id="statusLine">Нажмите «Разметить корпус»</div>
+
+    <div class="controls">
+      <button id="editBtn">Разметить корпус</button>
+      <button id="clearBtn" class="ghost">Сбросить</button>
+    </div>
+
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
