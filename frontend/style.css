@@ -1,10 +1,5 @@
 :root {
   --color-neutral: #b5b5b5;
-  --color-10a: #ef5350;
-  --color-10b: #42a5f5;
-  --color-11a: #66bb6a;
-  --color-11b: #ffa726;
-  --color-11v: #ab47bc;
   --bg: #ffffff;
   --surface: #ffffff;
   --surface-2: #fafafa;
@@ -185,13 +180,11 @@ html, body {
 }
 
 .controls {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
   margin-bottom: 16px;
 }
 
 .controls button {
+  width: 100%;
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
@@ -217,15 +210,6 @@ html, body {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
-}
-
-.controls button.ghost {
-  color: var(--text-muted);
-  border-color: var(--border);
-}
-
-.controls button.ghost:hover {
-  color: var(--text);
 }
 
 .legend {

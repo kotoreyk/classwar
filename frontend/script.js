@@ -1,7 +1,29 @@
 (function () {
   const DEFAULT_CENTER = [48.4805, 135.0795];
-  const NEIGHBOR_PENALTY = 1.5;
+  const M_PER_DEG_LAT = 110540;
+  const HEX_AREA_COEFF = 3 * Math.sqrt(3) / 2;
+  const MIN_HEX_RADIUS = 0.8;
+  const MAX_HEX_RADIUS = 20;
+  const BASE_DAILY_POINTS = 10;
+  const HOME_POINTS = 1;
+  const HOME_EDGE_THRESHOLD = 1.5;
   const GLOW_VALUE_THRESHOLD = 0.7;
+  const NEIGHBOR_PENALTY = 1.5;
+
+  const GROUPS_CONFIG = [
+    { id: '9А', name: '9 А', color: '#ef5350' },
+    { id: '9Б', name: '9 Б', color: '#42a5f5' },
+    { id: '9В', name: '9 В', color: '#66bb6a' },
+    { id: '10А', name: '10 А', color: '#ffa726' },
+    { id: '10Б', name: '10 Б', color: '#ab47bc' },
+    { id: '10В', name: '10 В', color: '#26c6da' },
+    { id: '10Г', name: '10 Г', color: '#ec407a' },
+    { id: '11А', name: '11 А', color: '#8d6e63' },
+    { id: '11Б', name: '11 Б', color: '#78909c' },
+    { id: '11В', name: '11 В', color: '#7e57c2' }
+  ];
+
+  const NEUTRAL = { id: 'neutral', name: 'Нейтрально', color: '#b5b5b5' };
 
   let center = DEFAULT_CENTER.slice();
   let outline = [];
@@ -11,108 +33,7 @@
   let editing = false;
   let draft = [];
   let currentAddress = '';
-  let buildingId = 1;
-  let currentUserGroup = 'group_1';
-
-  const API = {
-    base: 'https://your-backend.ru/api',
-
-    async getMap(buildingId) {
-      // TODO: раскомментировать когда бэк будет готов
-      // const res = await fetch(`${this.base}/map?building_id=${buildingId}`);
-      // return await res.json();
-      
-      return null;
-    },
-
-    async sendMapToBackend(data) {
-      // TODO: раскомментировать когда бэк будет готов
-      // const res = await fetch(`${this.base}/map/generate`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(data)
-      // });
-      // return await res.json();
-      
-      console.log('Отправка на бэк (закомментировано):', data);
-      return null;
-    },
-
-    async hexAction(hexId, action, points = 0) {
-      const hex = hexes.find(h => h.id === hexId);
-      if (!hex) return { type: 'error', reason: 'Гекс не найден' };
-
-      if (hex.isHome) {
-        return { type: 'forbidden', reason: 'Нельзя атаковать домашнюю территорию', updated: false };
-      }
-
-      const distance = this.getDistanceToNearestOwnedHex(hex, currentUserGroup, hexes);
-      const multiplier = distance > 0 ? Math.pow(NEIGHBOR_PENALTY, distance) : 1;
-      const basePoints = Math.floor(Math.random() * 50) + 30;
-      const requiredPoints = Math.floor(basePoints * multiplier);
-
-      if (action === 'attack') {
-        const success = points >= requiredPoints;
-
-        if (success) {
-          hex.owner = currentUserGroup;
-          const group = GROUPS_CONFIG.find(g => g.id === currentUserGroup);
-          hex.ownerName = group ? group.name : currentUserGroup;
-          hex.color = group ? group.color : '#b5b5b5';
-          return { type: 'success', success: true, hex_id: hexId, updated: true };
-        } else {
-          return {
-            type: 'failed',
-            success: false,
-            reason: 'Недостаточно очков. Нужно: ' + requiredPoints,
-            updated: false
-          };
-        }
-      }
-
-      return {
-        type: 'battle_start',
-        current_points: requiredPoints,
-        distance: distance,
-        multiplier: multiplier,
-        hex_id: hexId,
-        updated: false
-      };
-    },
-
-    getDistanceToNearestOwnedHex(targetHex, ownerId, allHexes) {
-      if (targetHex.owner === ownerId) return 0;
-
-      const hexById = new Map(allHexes.map(h => [h.id, h]));
-      const visited = new Set();
-      const queue = [[targetHex.id, 0]];
-      visited.add(targetHex.id);
-
-      while (queue.length > 0) {
-        const [currentId, dist] = queue.shift();
-        const current = hexById.get(currentId);
-
-        if (current && current.owner === ownerId) return dist;
-
-        if (current) {
-          for (const neighborId of current.neighbors) {
-            if (!visited.has(neighborId)) {
-              visited.add(neighborId);
-              queue.push([neighborId, dist + 1]);
-            }
-          }
-        }
-      }
-
-      return -1;
-    }
-  };
-
-  const GROUPS_CONFIG = [
-    { id: 'group_1', name: 'Группа 1', color: '#ef5350' },
-    { id: 'group_2', name: 'Группа 2', color: '#42a5f5' },
-    { id: 'group_3', name: 'Группа 3', color: '#66bb6a' }
-  ];
+  let currentUserGroup = GROUPS_CONFIG[0].id;
 
   const map = L.map('map', {
     center: DEFAULT_CENTER,
@@ -160,7 +81,6 @@
 
   let toastTimer = null;
   let selectedHex = null;
-  let pendingAttackData = null;
 
   function setStatus(text) { statusEl.textContent = text; }
 
@@ -186,7 +106,7 @@
     });
     const neutralRow = document.createElement('div');
     neutralRow.className = 'legend-item';
-    neutralRow.innerHTML = '<div class="legend-swatch" style="color:#b5b5b5"></div><span>Нейтрально</span>';
+    neutralRow.innerHTML = '<div class="legend-swatch" style="color:' + NEUTRAL.color + '"></div><span>' + NEUTRAL.name + '</span>';
     legendEl.appendChild(neutralRow);
     const homeRow = document.createElement('div');
     homeRow.className = 'legend-item';
@@ -200,51 +120,338 @@
 
   buildLegend();
 
-  async function loadMapFromBackend() {
-    try {
-      setStatus('Загрузка карты...');
-      const data = await API.getMap(buildingId);
+  function metersPerDegLng(lat) {
+    return 111320 * Math.cos(lat * Math.PI / 180);
+  }
 
-      if (data) {
-        outline = data.building.outline;
-        hexes = data.hexes;
-        hexRadius = data.hex_radius;
-        setBuildingName(data.address);
-        rebuild();
-        setStatus('Карта загружена из бэка');
-      } else {
-        setStatus('Данные не найдены в бэке. Генерация локально...');
-        generateAndDisplay();
+  function toLocal(latlng) {
+    return [
+      (latlng[1] - center[1]) * metersPerDegLng(center[0]),
+      (latlng[0] - center[0]) * M_PER_DEG_LAT
+    ];
+  }
+
+  function toLatLng(x, y) {
+    return [
+      center[0] + y / M_PER_DEG_LAT,
+      center[1] + x / metersPerDegLng(center[0])
+    ];
+  }
+
+  function pointInPolygon(x, y, poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const xi = poly[i][0], yi = poly[i][1];
+      const xj = poly[j][0], yj = poly[j][1];
+      const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  function polygonArea(points) {
+    let sum = 0;
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i], b = points[(i + 1) % points.length];
+      sum += a[0] * b[1] - b[0] * a[1];
+    }
+    return Math.abs(sum / 2);
+  }
+
+  function polygonBounds(points) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of points) {
+      if (p[0] < minX) minX = p[0];
+      if (p[1] < minY) minY = p[1];
+      if (p[0] > maxX) maxX = p[0];
+      if (p[1] > maxY) maxY = p[1];
+    }
+    return { minX, minY, maxX, maxY };
+  }
+
+  function polygonCentroid(points) {
+    const bounds = polygonBounds(points);
+    return [(bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2];
+  }
+
+  function pointToSegmentDistance(px, py, ax, ay, bx, by) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) return Math.hypot(px - ax, py - ay);
+    let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+
+  function distanceToOutline(x, y, outlineLocal) {
+    let minDist = Infinity;
+    for (let i = 0; i < outlineLocal.length; i++) {
+      const a = outlineLocal[i];
+      const b = outlineLocal[(i + 1) % outlineLocal.length];
+      const d = pointToSegmentDistance(x, y, a[0], a[1], b[0], b[1]);
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  }
+
+  function computeAdaptiveRadius(area) {
+    const target = Math.round(Math.max(25, Math.min(150, Math.sqrt(area) / 2)));
+    const r = Math.sqrt(area / (target * HEX_AREA_COEFF));
+    return Math.max(MIN_HEX_RADIUS, Math.min(MAX_HEX_RADIUS, r));
+  }
+
+  function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function buildHexNeighbors(hexList) {
+    const hexMap = new Map();
+    hexList.forEach(h => hexMap.set(h.q + ',' + h.s, h));
+
+    const directions = [
+      [1, 0], [1, -1], [0, -1],
+      [-1, 0], [-1, 1], [0, 1]
+    ];
+
+    hexList.forEach(hex => {
+      hex.neighbors = [];
+      for (const [dq, ds] of directions) {
+        const neighbor = hexMap.get((hex.q + dq) + ',' + (hex.s + ds));
+        if (neighbor) hex.neighbors.push(neighbor.id);
       }
-    } catch (e) {
-      setStatus('Ошибка: ' + e.message);
-      showToast('Не удалось загрузить карту', '#ef5350');
+    });
+  }
+
+  function getDistanceToNearestOwnedHex(targetHex, ownerId, allHexes) {
+    if (targetHex.owner === ownerId) return 0;
+
+    const hexById = new Map(allHexes.map(h => [h.id, h]));
+    const visited = new Set();
+    const queue = [[targetHex.id, 0]];
+    visited.add(targetHex.id);
+
+    while (queue.length > 0) {
+      const [currentId, dist] = queue.shift();
+      const current = hexById.get(currentId);
+
+      if (current && current.owner === ownerId) return dist;
+
+      if (current) {
+        for (const neighborId of current.neighbors) {
+          if (!visited.has(neighborId)) {
+            visited.add(neighborId);
+            queue.push([neighborId, dist + 1]);
+          }
+        }
+      }
+    }
+
+    return -1;
+  }
+
+  function classifyHexes(hexList, outlineLocal, centroid) {
+    if (hexList.length === 0) return;
+    let maxDist = 0;
+    for (const hex of hexList) {
+      const d = Math.hypot(hex.localX - centroid[0], hex.localY - centroid[1]);
+      if (d > maxDist) maxDist = d;
+    }
+    for (const hex of hexList) {
+      const distToOutline = distanceToOutline(hex.localX, hex.localY, outlineLocal);
+      const distToCentroid = Math.hypot(hex.localX - centroid[0], hex.localY - centroid[1]);
+      hex.isHomeCandidate = distToOutline < hex.size * HOME_EDGE_THRESHOLD;
+      const normalizedDist = maxDist > 0 ? distToCentroid / maxDist : 0;
+      let value = 1 - normalizedDist;
+      if (hex.isHomeCandidate) value = Math.min(value, 0.2);
+      hex.value = value;
+      hex.dailyPoints = hex.isHomeCandidate ? HOME_POINTS : Math.max(1, Math.round(BASE_DAILY_POINTS * value));
     }
   }
 
-  function generateAndDisplay() {
-    if (outline.length < 3) {
-      setStatus('Сначала создайте контур здания');
-      return;
+  function assignOwners(hexList) {
+    const shuffled = shuffleArray([...hexList]);
+    const allGroups = [...GROUPS_CONFIG];
+
+    const homeCandidates = shuffled.filter(h => h.isHomeCandidate);
+    const nonHomeHexes = shuffled.filter(h => !h.isHomeCandidate);
+
+    let homeIdx = 0;
+
+    allGroups.forEach(group => {
+      if (homeIdx < homeCandidates.length) {
+        homeCandidates[homeIdx].owner = group.id;
+        homeCandidates[homeIdx].ownerName = group.name;
+        homeCandidates[homeIdx].color = group.color;
+        homeCandidates[homeIdx].isHome = true;
+        homeIdx++;
+      }
+    });
+
+    while (homeIdx < homeCandidates.length) {
+      homeCandidates[homeIdx].isHome = false;
+      homeIdx++;
     }
 
-    const buildingData = {
-      id: buildingId,
-      address: currentAddress || 'Локальная карта',
-      groupCount: GROUPS_CONFIG.length,
-      radius: 5,
-      outline: outline.map(p => ({ x: p[0], y: p[1], lat: p[0], lng: p[1] }))
-    };
+    const remainingNonHome = shuffleArray([...nonHomeHexes]);
+    let nonHomeIdx = 0;
 
-    const generatedData = HexGenerator.generate(buildingData);
-    
-    hexes = generatedData.hexes;
-    hexRadius = generatedData.hex_radius;
-    
+    allGroups.forEach(group => {
+      if (nonHomeIdx < remainingNonHome.length) {
+        remainingNonHome[nonHomeIdx].owner = group.id;
+        remainingNonHome[nonHomeIdx].ownerName = group.name;
+        remainingNonHome[nonHomeIdx].color = group.color;
+        nonHomeIdx++;
+      }
+    });
+
+    const allRemaining = [
+      ...homeCandidates.filter(h => !h.isHome),
+      ...remainingNonHome.slice(nonHomeIdx)
+    ];
+    allRemaining.forEach(h => {
+      h.owner = null;
+      h.ownerName = NEUTRAL.name;
+      h.color = NEUTRAL.color;
+    });
+  }
+
+  function buildHexField(polyLocal, size) {
+    const sqrt3 = Math.sqrt(3);
+    const bounds = polygonBounds(polyLocal);
+    const origin = polygonCentroid(polyLocal);
+    const cx = origin[0];
+    const cy = origin[1];
+    const halfW = (bounds.maxX - bounds.minX) / 2 + size * 2;
+    const halfH = (bounds.maxY - bounds.minY) / 2 + size * 2;
+    const qRange = Math.ceil(halfW / (size * sqrt3)) + 1;
+    const sRange = Math.ceil(halfH / (size * 1.5)) + 1;
+    const result = [];
+    let id = 1;
+
+    for (let q = -qRange; q <= qRange; q++) {
+      for (let s = -sRange; s <= sRange; s++) {
+        const x = cx + size * sqrt3 * (q + s / 2);
+        const y = cy + size * 1.5 * s;
+        if (!pointInPolygon(x, y, polyLocal)) continue;
+        result.push({
+          id: id++,
+          q: q,
+          s: s,
+          size: size,
+          localX: x,
+          localY: y,
+          latlng: toLatLng(x, y),
+          owner: null,
+          ownerName: null,
+          color: null,
+          isHome: false,
+          isHomeCandidate: false,
+          neighbors: []
+        });
+      }
+    }
+    return result;
+  }
+
+  function generateHexes() {
+    if (outline.length < 3) return { hexes: [], radius: 0, area: 0 };
+    const polyLocal = outline.map(toLocal);
+    const area = polygonArea(polyLocal);
+    if (area < 1) return { hexes: [], radius: 0, area: area };
+    const r = computeAdaptiveRadius(area);
+    const field = buildHexField(polyLocal, r);
+    const centroid = polygonCentroid(polyLocal);
+    classifyHexes(field, polyLocal, centroid);
+    buildHexNeighbors(field);
+    assignOwners(field);
+    return { hexes: field, radius: r, area: area };
+  }
+
+  function rebuild() {
+    if (gridLayer) {
+      map.removeLayer(gridLayer);
+      gridLayer = null;
+    }
+    outlineLayer.setLatLngs(outline);
+
+    const result = generateHexes();
+    hexes = result.hexes;
+    hexRadius = result.radius;
+
+    countEl.textContent = hexes.length;
+    sizeEl.textContent = hexRadius ? hexRadius.toFixed(1) : '—';
+
+    if (hexes.length) {
+      gridLayer = new HexGridLayer(hexes).addTo(map);
+      setStatus('Гексы построены внутри контура здания.');
+    } else if (outline.length >= 3) {
+      if (result.area < 5) {
+        setStatus('Площадь здания менее 5 м² — слишком мало для сетки.');
+      } else {
+        setStatus('Не удалось разместить гексы. Попробуйте уменьшить размер.');
+      }
+    } else {
+      setStatus('Введите адрес здания или нажмите «Разметить корпус»');
+    }
+  }
+
+  function fitToOutline() {
+    if (outline.length < 3) return;
+    map.fitBounds(L.latLngBounds(outline).pad(0.6), { maxZoom: 20, animate: true });
+  }
+
+  function applyOutline(points) {
+    outline = points.map(p => [p[0], p[1]]);
     rebuild();
-    setStatus('Гексы сгенерированы локально');
+    fitToOutline();
+  }
 
-    API.sendMapToBackend(generatedData);
+  function setEditing(value) {
+    editing = value;
+    editBtn.classList.toggle('active', value);
+    editBtn.textContent = value ? 'Завершить' : 'Разметить корпус';
+    if (value) {
+      draft = [];
+      draftLayer.clearLayers();
+      map.dragging.disable();
+      map.doubleClickZoom.disable();
+      map.getContainer().style.cursor = 'crosshair';
+      setStatus('Кликайте по углам корпуса. Enter — сохранить, Esc — отмена.');
+    } else {
+      map.dragging.enable();
+      map.doubleClickZoom.enable();
+      map.getContainer().style.cursor = '';
+      draftLayer.clearLayers();
+    }
+    if (gridLayer && gridLayer._canvas) {
+      gridLayer._canvas.style.pointerEvents = value ? 'none' : 'auto';
+    }
+  }
+
+  function updateDraft() {
+    draftLayer.clearLayers();
+    draft.forEach(p => {
+      L.circleMarker(p, {
+        radius: 4,
+        color: '#1a1a1a',
+        fillColor: '#1a1a1a',
+        fillOpacity: 1,
+        weight: 1
+      }).addTo(draftLayer);
+    });
+    if (draft.length > 1) {
+      L.polyline(draft.concat([draft[0]]), {
+        color: '#1a1a1a',
+        weight: 1.5,
+        dashArray: '4 4',
+        fillOpacity: 0.04
+      }).addTo(draftLayer);
+    }
   }
 
   async function handleHexClick(hex) {
@@ -256,29 +463,58 @@
     selectedHex = hex;
     showToast('Сектор #' + hex.id + ' · ' + hex.ownerName + ' · +' + hex.dailyPoints + ' очков/день', hex.color);
 
-    try {
-      const result = await API.hexAction(hex.id, 'inspect');
+    const distance = getDistanceToNearestOwnedHex(hex, currentUserGroup, hexes);
+    const multiplier = distance > 0 ? Math.pow(NEIGHBOR_PENALTY, distance) : 1;
+    const basePoints = Math.floor(Math.random() * 50) + 30;
+    const requiredPoints = Math.floor(basePoints * multiplier);
 
-      if (result.type === 'battle_start') {
-        attackHexIdEl.textContent = '#' + hex.id;
-        attackOwnerEl.textContent = hex.ownerName || 'Нейтрально';
-        attackDistanceEl.textContent = result.distance + ' гекс(ов)';
-        attackMultiplierEl.textContent = 'x' + result.multiplier.toFixed(2);
-        attackCurrentPointsEl.textContent = result.current_points;
-        attackPointsInput.value = '';
-        pendingAttackData = result;
-        attackModal.classList.add('show');
-      } else if (result.type === 'forbidden') {
-        showToast('🚫 ' + result.reason, '#ef5350');
-      }
-
-      if (result.updated) {
-        rebuild();
-      }
-    } catch (e) {
-      showToast('Ошибка связи', '#ef5350');
-    }
+    attackHexIdEl.textContent = '#' + hex.id;
+    attackOwnerEl.textContent = hex.ownerName || 'Нейтрально';
+    attackDistanceEl.textContent = distance + ' гекс(ов)';
+    attackMultiplierEl.textContent = 'x' + multiplier.toFixed(2);
+    attackCurrentPointsEl.textContent = requiredPoints;
+    attackPointsInput.value = '';
+    attackModal.classList.add('show');
   }
+
+  function closeAttackModal() {
+    attackModal.classList.remove('show');
+    selectedHex = null;
+  }
+
+  closeModalBtn.onclick = closeAttackModal;
+  cancelAttackBtn.onclick = closeAttackModal;
+
+  attackModal.addEventListener('click', (e) => {
+    if (e.target === attackModal) closeAttackModal();
+  });
+
+  confirmAttackBtn.onclick = function() {
+    if (!selectedHex) return;
+
+    const points = parseInt(attackPointsInput.value);
+    if (!points || points < 1) {
+      showToast('Введите количество очков', '#ef5350');
+      return;
+    }
+
+    const distance = getDistanceToNearestOwnedHex(selectedHex, currentUserGroup, hexes);
+    const multiplier = distance > 0 ? Math.pow(NEIGHBOR_PENALTY, distance) : 1;
+    const basePoints = Math.floor(Math.random() * 50) + 30;
+    const requiredPoints = Math.floor(basePoints * multiplier);
+
+    if (points >= requiredPoints) {
+      selectedHex.owner = currentUserGroup;
+      const group = GROUPS_CONFIG.find(g => g.id === currentUserGroup);
+      selectedHex.ownerName = group ? group.name : currentUserGroup;
+      selectedHex.color = group ? group.color : '#b5b5b5';
+      showToast('✅ Сектор #' + selectedHex.id + ' захвачен!', '#66bb6a');
+      closeAttackModal();
+      rebuild();
+    } else {
+      showToast('❌ Атака не удалась. Нужно: ' + requiredPoints + ' очков', '#ef5350');
+    }
+  };
 
   async function searchBuilding(address) {
     setStatus('Поиск адреса...');
@@ -348,7 +584,17 @@
       throw new Error('Контур здания не найден');
     }
 
-    return buildings[0].map(coord => ({ x: coord[0], y: coord[1], lat: coord[0], lng: coord[1] }));
+    let best = buildings[0];
+    let bestArea = 0;
+    for (const b of buildings) {
+      const local = b.map(toLocal);
+      const a = polygonArea(local);
+      if (a > bestArea) {
+        bestArea = a;
+        best = b;
+      }
+    }
+    return best;
   }
 
   async function handleSearch() {
@@ -366,11 +612,10 @@
       setBuildingName(geo.displayName.split(',')[0]);
 
       const outlineCoords = await fetchBuildingOutline(geo.lat, geo.lng);
-      outline = outlineCoords.map(p => [p.lat, p.lng]);
-      
-      generateAndDisplay();
+      outline = outlineCoords;
+      rebuild();
       fitToOutline();
-      showToast('Здание найдено и гексы сгенерированы', '#66bb6a');
+      showToast('Здание найдено: ' + outline.length + ' точек контура', '#66bb6a');
     } catch (e) {
       showToast(e.message, '#ef5350');
       setStatus('Ошибка: ' + e.message);
@@ -383,51 +628,6 @@
   addressInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') handleSearch();
   });
-
-  function closeAttackModal() {
-    attackModal.classList.remove('show');
-    selectedHex = null;
-    pendingAttackData = null;
-  }
-
-  closeModalBtn.onclick = closeAttackModal;
-  cancelAttackBtn.onclick = closeAttackModal;
-
-  attackModal.addEventListener('click', (e) => {
-    if (e.target === attackModal) closeAttackModal();
-  });
-
-  confirmAttackBtn.onclick = async function() {
-    if (!selectedHex) return;
-
-    const points = parseInt(attackPointsInput.value);
-    if (!points || points < 1) {
-      showToast('Введите количество очков', '#ef5350');
-      return;
-    }
-
-    confirmAttackBtn.disabled = true;
-    confirmAttackBtn.textContent = 'Атака...';
-
-    try {
-      const result = await API.hexAction(selectedHex.id, 'attack', points);
-
-      if (result.success) {
-        showToast('✅ Сектор #' + selectedHex.id + ' захвачен!', '#66bb6a');
-        closeAttackModal();
-        rebuild();
-      } else if (result.type === 'failed') {
-        showToast('❌ Атака не удалась. ' + result.reason, '#ef5350');
-      } else {
-        showToast('Ошибка: ' + (result.reason || 'Неизвестно'), '#ef5350');
-      }
-    } catch (e) {
-      showToast('Ошибка связи', '#ef5350');
-    } finally {
-      confirmAttackBtn.disabled = false;
-      confirmAttackBtn.textContent = 'Атаковать';
-    }
-  };
 
   const HexGridLayer = L.Layer.extend({
     initialize: function (items) {
@@ -477,7 +677,7 @@
     _pixelRadius: function (hex) {
       const latRad = center[0] * Math.PI / 180;
       const mPerPx = 156543.03392 * Math.cos(latRad) / Math.pow(2, this._map.getZoom());
-      return hexRadius / mPerPx;
+      return hex.size / mPerPx;
     },
     _scheduleRedraw: function () {
       if (this._raf) return;
@@ -491,7 +691,7 @@
       const size = this._map.getSize();
       ctx.clearRect(0, 0, size.x, size.y);
       for (const hex of this.items) {
-        const p = this._map.latLngToContainerPoint([hex.lat, hex.lng]);
+        const p = this._map.latLngToContainerPoint(hex.latlng);
         const r = this._pixelRadius(hex);
         if (p.x < -r || p.x > size.x + r || p.y < -r || p.y > size.y + r) continue;
         this._drawHex(ctx, p.x, p.y, r, hex, hex === this._hovered);
@@ -607,7 +807,7 @@
       let best = null;
       let bestDist = Infinity;
       for (const hex of this.items) {
-        const p = this._map.latLngToContainerPoint([hex.lat, hex.lng]);
+        const p = this._map.latLngToContainerPoint(hex.latlng);
         const r = this._pixelRadius(hex);
         const d = Math.hypot(p.x - x, p.y - y);
         if (d < r * 0.92 && d < bestDist) {
@@ -647,68 +847,6 @@
     }
   });
 
-  function rebuild() {
-    if (gridLayer) {
-      map.removeLayer(gridLayer);
-      gridLayer = null;
-    }
-    outlineLayer.setLatLngs(outline);
-
-    countEl.textContent = hexes.length;
-    sizeEl.textContent = hexRadius ? hexRadius.toFixed(1) : '—';
-    if (hexes.length) {
-      gridLayer = new HexGridLayer(hexes).addTo(map);
-    }
-  }
-
-  function fitToOutline() {
-    if (outline.length < 3) return;
-    map.fitBounds(L.latLngBounds(outline).pad(0.6), { maxZoom: 20, animate: true });
-  }
-
-  function setEditing(value) {
-    editing = value;
-    editBtn.classList.toggle('active', value);
-    editBtn.textContent = value ? 'Завершить' : 'Разметить корпус';
-    if (value) {
-      draft = [];
-      draftLayer.clearLayers();
-      map.dragging.disable();
-      map.doubleClickZoom.disable();
-      map.getContainer().style.cursor = 'crosshair';
-      setStatus('Кликайте по углам корпуса. Enter — сохранить, Esc — отмена.');
-    } else {
-      map.dragging.enable();
-      map.doubleClickZoom.enable();
-      map.getContainer().style.cursor = '';
-      draftLayer.clearLayers();
-    }
-    if (gridLayer && gridLayer._canvas) {
-      gridLayer._canvas.style.pointerEvents = value ? 'none' : 'auto';
-    }
-  }
-
-  function updateDraft() {
-    draftLayer.clearLayers();
-    draft.forEach(p => {
-      L.circleMarker(p, {
-        radius: 4,
-        color: '#1a1a1a',
-        fillColor: '#1a1a1a',
-        fillOpacity: 1,
-        weight: 1
-      }).addTo(draftLayer);
-    });
-    if (draft.length > 1) {
-      L.polyline(draft.concat([draft[0]]), {
-        color: '#1a1a1a',
-        weight: 1.5,
-        dashArray: '4 4',
-        fillOpacity: 0.04
-      }).addTo(draftLayer);
-    }
-  }
-
   map.on('click', function (e) {
     if (!editing) return;
     const p = [e.latlng.lat, e.latlng.lng];
@@ -725,10 +863,8 @@
       if (draft.length >= 3) {
         const points = draft.slice();
         setEditing(false);
-        outline = points;
-        generateAndDisplay();
-        fitToOutline();
-        showToast('Контур сохранён и гексы сгенерированы', '#66bb6a');
+        applyOutline(points);
+        showToast('Контур сохранён', '#66bb6a');
       } else {
         showToast('Нужно минимум 3 точки', '#ef5350');
       }
@@ -744,9 +880,7 @@
       if (draft.length >= 3) {
         const points = draft.slice();
         setEditing(false);
-        outline = points;
-        generateAndDisplay();
-        fitToOutline();
+        applyOutline(points);
       } else {
         setEditing(false);
       }
@@ -755,5 +889,5 @@
     }
   };
 
-  loadMapFromBackend();
+  rebuild();
 })();
