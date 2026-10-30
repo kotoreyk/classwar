@@ -6,6 +6,7 @@
   <title>Битва Классов</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div id="map"></div>
@@ -13,12 +14,7 @@
   <div class="hud" id="hud">
     <div class="hud-header">
       <h1>Битва классов</h1>
-      <div class="hud-sub" id="buildingName">Адрес не задан</div>
-    </div>
-
-    <div class="search-block">
-      <input type="text" id="addressInput" placeholder="Введите адрес здания" autocomplete="off" />
-      <button id="searchBtn" class="search-btn">Найти</button>
+      <div class="hud-sub" id="buildingName">Загрузка...</div>
     </div>
 
     <div class="stats">
@@ -27,16 +23,12 @@
         <span class="stat-value" id="hexCount">0</span>
       </div>
       <div class="stat">
-        <span class="stat-label">Размер</span>
-        <span class="stat-value" id="hexSize">— м</span>
+        <span class="stat-label">Мои</span>
+        <span class="stat-value" id="myHexes">0</span>
       </div>
     </div>
 
-    <div class="status" id="statusLine">Введите адрес или нажмите «Разметить корпус»</div>
-
-    <div class="controls">
-      <button id="editBtn">Разметить корпус</button>
-    </div>
+    <div class="status" id="statusLine">Инициализация...</div>
 
     <div class="legend" id="legend"></div>
   </div>
@@ -51,26 +43,11 @@
       </div>
       <div class="modal-body">
         <div class="attack-info">
-          <div class="info-row">
-            <span class="info-label">Сектор:</span>
-            <span class="info-value" id="attackHexId">—</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Владелец:</span>
-            <span class="info-value" id="attackOwner">—</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Расстояние:</span>
-            <span class="info-value" id="attackDistance">—</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Штраф:</span>
-            <span class="info-value" id="attackMultiplier">—</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Нужно очков:</span>
-            <span class="info-value" id="attackCurrentPoints">—</span>
-          </div>
+          <div class="info-row"><span class="info-label">Сектор:</span><span class="info-value" id="attackHexId">—</span></div>
+          <div class="info-row"><span class="info-label">Владелец:</span><span class="info-value" id="attackOwner">—</span></div>
+          <div class="info-row"><span class="info-label">Расстояние:</span><span class="info-value" id="attackDistance">—</span></div>
+          <div class="info-row"><span class="info-label">Штраф:</span><span class="info-value" id="attackMultiplier">—</span></div>
+          <div class="info-row"><span class="info-label">Нужно очков:</span><span class="info-value" id="attackCurrentPoints">—</span></div>
         </div>
         <div class="attack-input-group">
           <label for="attackPointsInput">Ваши очки (ставки за оценки):</label>
@@ -86,6 +63,7 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="generator.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
