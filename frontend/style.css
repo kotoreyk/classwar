@@ -44,8 +44,7 @@ html, body {
   position: absolute;
   top: 0;
   left: 0;
-  pointer-events: auto;
-  cursor: default;
+  pointer-events: none;
   z-index: 500;
 }
 
@@ -386,3 +385,6 @@ html, body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+.leaflet-container.hex-pointer { cursor: pointer; }
+.cost-big { font-size: 16px; }
+.cost-bad { color: #d32f2f; }

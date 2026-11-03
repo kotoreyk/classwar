@@ -6,7 +6,6 @@
   <title>Битва Классов</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div id="map"></div>
@@ -26,6 +25,14 @@
         <span class="stat-label">Мои</span>
         <span class="stat-value" id="myHexes">0</span>
       </div>
+      <div class="stat">
+        <span class="stat-label">ОД класса</span>
+        <span class="stat-value" id="myBalance">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Мой класс</span>
+        <span class="stat-value" id="myClass" style="font-size:14px">—</span>
+      </div>
     </div>
 
     <div class="status" id="statusLine">Инициализация...</div>
@@ -38,33 +45,29 @@
   <div class="modal-overlay" id="attackModal">
     <div class="modal">
       <div class="modal-header">
-        <h2>Атака на сектор</h2>
+        <h2>Захват сектора</h2>
         <button class="modal-close" id="closeModal">×</button>
       </div>
       <div class="modal-body">
         <div class="attack-info">
           <div class="info-row"><span class="info-label">Сектор:</span><span class="info-value" id="attackHexId">—</span></div>
           <div class="info-row"><span class="info-label">Владелец:</span><span class="info-value" id="attackOwner">—</span></div>
+          <div class="info-row"><span class="info-label">Доход:</span><span class="info-value" id="attackIncome">—</span></div>
           <div class="info-row"><span class="info-label">Расстояние:</span><span class="info-value" id="attackDistance">—</span></div>
-          <div class="info-row"><span class="info-label">Штраф:</span><span class="info-value" id="attackMultiplier">—</span></div>
-          <div class="info-row"><span class="info-label">Нужно очков:</span><span class="info-value" id="attackCurrentPoints">—</span></div>
+          <div class="info-row"><span class="info-label">Множитель:</span><span class="info-value" id="attackMultiplier">—</span></div>
+          <div class="info-row"><span class="info-label">Цена:</span><span class="info-value cost-big" id="attackCost">—</span></div>
+          <div class="info-row"><span class="info-label">У класса:</span><span class="info-value" id="attackBalance">—</span></div>
         </div>
-        <div class="attack-input-group">
-          <label for="attackPointsInput">Ваши очки (ставки за оценки):</label>
-          <input type="number" id="attackPointsInput" min="1" placeholder="Введите количество" />
-          <div class="attack-hint">Чем дальше от вашей территории — тем больше очков нужно</div>
-        </div>
+        <div class="attack-hint">Цена считается сервером и списывается с ОД класса. Чем дальше от ваших секторов — тем дороже.</div>
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" id="cancelAttack">Отмена</button>
-        <button class="btn-primary" id="confirmAttack">Атаковать</button>
+        <button class="btn-primary" id="confirmAttack">Захватить</button>
       </div>
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="generator.js"></script>
-  <script src="script.js"></script> 
+  <script src="script.js"></script>
 </body>
 </html>
