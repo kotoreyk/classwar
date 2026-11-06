@@ -9,8 +9,10 @@ import httpx
 from maxapi import Bot, Dispatcher, Command, InlineKeyboardBuilder
 from maxapi.types import Message, CallbackPayload
 
-TOKEN = os.environ["BOT_TOKEN"]
-SERVICE_KEY = os.environ["SERVICE_KEY"]
+TOKEN = os.getenv("BOT_TOKEN", "")
+SERVICE_KEY = os.getenv("SERVICE_KEY", "")
+if not TOKEN or not SERVICE_KEY:
+    raise SystemExit("Задайте BOT_TOKEN и SERVICE_KEY в .env (см. .env.example)")
 API_URL = os.getenv("API_URL", "http://backend:8000")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "")
 

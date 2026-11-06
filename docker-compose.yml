@@ -1,13 +1,13 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: ${REGISTRY:-battle}/classwar-db:${TAG:-latest}
+    build: ./db
     environment:
       POSTGRES_USER: battle
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-battle}
       POSTGRES_DB: battle
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U battle -d battle"]
       interval: 5s
@@ -16,13 +16,14 @@ services:
     restart: unless-stopped
 
   backend:
+    image: ${REGISTRY:-battle}/classwar-backend:${TAG:-latest}
     build: ./backend
     environment:
-      DATABASE_URL: postgresql://battle:${POSTGRES_PASSWORD}@db:5432/battle
-      BOT_TOKEN: ${BOT_TOKEN:?set BOT_TOKEN in .env}
-      SERVICE_KEY: ${SERVICE_KEY:?set SERVICE_KEY in .env}
-      ADMIN_CODE: ${ADMIN_CODE:?set ADMIN_CODE in .env}
-      CURATOR_CODE: ${CURATOR_CODE:?set CURATOR_CODE in .env}
+      DATABASE_URL: postgresql://battle:${POSTGRES_PASSWORD:-battle}@db:5432/battle
+      BOT_TOKEN: ${BOT_TOKEN:-}
+      SERVICE_KEY: ${SERVICE_KEY:-}
+      ADMIN_CODE: ${ADMIN_CODE:-}
+      CURATOR_CODE: ${CURATOR_CODE:-}
       DEV_MODE: ${DEV_MODE:-0}
       HEXES_PER_CLASS: ${HEXES_PER_CLASS:-6}
       INCOME_TZ: ${INCOME_TZ:-Asia/Vladivostok}
@@ -31,22 +32,27 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  bot:
-    build: ./bot
-    environment:
-      BOT_TOKEN: ${BOT_TOKEN}
-      SERVICE_KEY: ${SERVICE_KEY}
-      API_URL: http://backend:8000
-      WEBAPP_URL: ${WEBAPP_URL:-}
+  frontend:
+    image: ${REGISTRY:-battle}/classwar-frontend:${TAG:-latest}
+    build: ./frontend
+    ports:
+      - "${WEB_PORT:-8080}:80"
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
 
-  frontend:
-    build: ./frontend
-    ports:
-      - "${WEB_PORT:-8080}:80"
+  # Бот запускается отдельно, потому что ему нужен настоящий токен MAX:
+  #   docker compose --profile bot up
+  bot:
+    image: ${REGISTRY:-battle}/classwar-bot:${TAG:-latest}
+    build: ./bot
+    profiles: ["bot"]
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN:-}
+      SERVICE_KEY: ${SERVICE_KEY:-}
+      API_URL: http://backend:8000
+      WEBAPP_URL: ${WEBAPP_URL:-}
     depends_on:
       backend:
         condition: service_healthy
